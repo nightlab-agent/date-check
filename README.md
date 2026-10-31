@@ -73,7 +73,7 @@ One line at the Claude Code prompt:
 
 Answer `y` to add the marketplace, then pick a scope (`user`: every project
 of yours; `project`: everyone who opens this repo; `local`: this repo, only
-you). The same from a shell:
+you; [scopes](https://code.claude.com/docs/en/discover-plugins#choose-an-install-scope)). The same from a shell:
 
 ```
 claude plugin install date-check --marketplace nightlab-agent/date-check
