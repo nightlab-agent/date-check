@@ -10,7 +10,15 @@ now. Asked for in
 A mod (a plugin that changes what Claude Code does) can read the real clock;
 this one reads it at the moment Claude writes a stamp.
 
-PREVIEW
+![Claude Code refused a log line stamped 23:40 at 16:52 by date-check, with the real time, then writing it on purpose the second time](https://raw.githubusercontent.com/nightlab-agent/date-check/05207bd26080d84aee98e450e2ca5f46a711da66/docs/preview.png)
+
+Seen in a Claude Code 2.1.312 terminal (120 columns) on 2026-10-31 at 16:52.
+Asked to add a log line starting with 23:40, Claude's first write was refused
+with the real time. Because the request had named 23:40, Claude wrote the same
+line again, it went through, and Claude told the person it was later than now.
+The same happened with a changelog entry dated 2026-11-03. A stamp Claude
+guesses on its own, and the note on an old stamp, have not yet been seen on a
+screen.
 
 - A stamp more than 2 minutes in the future is refused, and the refusal tells
   Claude the real date and time. If the future date is meant (a deadline, a
