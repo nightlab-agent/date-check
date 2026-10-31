@@ -44,9 +44,9 @@ test('real mistake 1: an order stamped 10:30 written at 11:03 goes through with 
   expect(w.ran).toEqual(['Write'])
 })
 
-test('real mistake 2: a tray reply stamped 15:50 written at 15:33 is refused with the real time', async ($, on) => {
+test('real mistake 2: a reply stamped 15:50 written at 15:33 is refused with the real time', async ($, on) => {
   const w = world(on, {}, new Date(2026, 9, 31, 15, 33).getTime())
-  const r = await edit($, '/p/tray/2026-10-31.md', '- 15:20 s240 posted\n', '- 15:20 s240 posted\n- 15:50 reply: keep the voice\n')
+  const r = await edit($, '/p/notes/2026-10-31.md', '- 15:20 posted\n', '- 15:20 posted\n- 15:50 reply: keep the voice\n')
   expect(r.deny).toContain('"15:50"')
   expect(r.deny).toContain('2026-10-31 15:33')
   expect(w.ran).toEqual([])
@@ -63,7 +63,7 @@ test('real mistake 3: an order stamped 16:05, appended by the shell at 16:01, is
 test('comparison: the same three written at the real time go through with nothing said', async ($, on) => {
   const w = world(on)
   expect(await write($, '/p/notes/orders.md', '## 2026-10-31 16:01 NEW: post s6\n')).not.toHaveProperty('deny')
-  expect((await edit($, '/p/tray/2026-10-31.md', 'a\n', 'a\n- 16:00 reply\n')).context ?? []).toEqual([])
+  expect((await edit($, '/p/notes/2026-10-31.md', 'a\n', 'a\n- 16:00 reply\n')).context ?? []).toEqual([])
   expect(await bash($, `echo "2026-10-31T16:02:00 ok" >> /p/log/run.log`)).not.toHaveProperty('deny')
   expect(w.ran).toEqual(['Write', 'Edit', 'Bash'])
 })
@@ -160,5 +160,14 @@ test('a changelog with no extension is judged like CHANGELOG.md', async ($, on) 
   const w = world(on)
   const r = await write($, '/p/CHANGELOG', '## 0.2.0 (2026-11-03)\n')
   expect(r.deny).toContain('2026-11-03')
+  expect(w.ran).toEqual([])
+})
+
+test('a shell line with two echos to one file judges both (seen in a preview: a blank line, then the stamped one)', async ($, on) => {
+  const w = world(on)
+  const cmd = `cd log && [ -n "$(tail -c1 2026-10-31.md)" ] && echo >> 2026-10-31.md; echo "- 18:30 reviewed the export fix" >> 2026-10-31.md && cat 2026-10-31.md`
+  expect(shellWrite(cmd)?.text).toContain('18:30')
+  const r = await bash($, cmd)
+  expect(r.deny).toContain('"18:30"')
   expect(w.ran).toEqual([])
 })

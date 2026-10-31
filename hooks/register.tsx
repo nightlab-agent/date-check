@@ -38,14 +38,17 @@ export const shellWrite = (command: string): { file: string; text: string } | un
     const file = target(`${doc[1]} ${doc[3]}`) ?? (/^[ \t]*tee\b/m.test(doc[0]) ? target(doc[0].split('\n')[0]!) : undefined)
     if (file && file !== '/dev/null') return { file, text: doc[4]! }
   }
+  let file: string | undefined
+  const texts: string[] = []
   for (const part of clean.replace(/<<-?\s*['"]?(\w+)['"]?[^\n]*\n[\s\S]*?\n\s*\1\s*$/gm, '').split(/&&|\|\||;|\n/)) {
     if (!/^\s*(?:echo|printf)\b/.test(part)) continue
-    const file = target(part.replace(/\|\s*tee\b/, ' tee'))
-    if (!file || file === '/dev/null') continue
+    const to = target(part.replace(/\|\s*tee\b/, ' tee'))
+    if (!to || to === '/dev/null' || (file !== undefined && to !== file)) continue
+    file = to
     const said = [...part.matchAll(/(?:"((?:[^"\\]|\\.)*)"|'([^']*)')/g)].map(m => (m[1] ?? m[2] ?? '').replace(/\\n/g, '\n'))
-    return { file, text: said.length ? said.join('\n') : part }
+    texts.push(said.length ? said.join('\n') : part)
   }
-  return undefined
+  return file === undefined ? undefined : { file, text: texts.join('\n') }
 }
 
 /** What a call changes in which file: the file's text before and after it. */

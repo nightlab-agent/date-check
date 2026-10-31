@@ -3,12 +3,13 @@
 A Claude Code mod that checks the dates and times Claude writes into your files
 against the real clock, before the write lands.
 
-Agents guess the time. A changelog entry dated two days ahead, a log line
-stamped 15:50 when it is 15:33, a handoff "updated" an hour ago that was written
-now. Asked for in
-[anthropics/claude-code#32913](https://github.com/anthropics/claude-code/issues/32913).
-A mod (a plugin that changes what Claude Code does) can read the real clock;
-this one reads it at the moment Claude writes a stamp.
+Agents guess the time. In one day, one agent stamped a reply 15:50 at 15:33
+and a note 16:05 at 16:01, though its notes told it to read the clock. People
+ask for Claude to be told the time
+([anthropics/claude-code#32913](https://github.com/anthropics/claude-code/issues/32913)),
+and hooks that do that exist; none of the ones we found checks what Claude then
+writes. A mod (a plugin that changes what Claude Code does) can read the real
+clock; this one reads it at the moment Claude writes a stamp.
 
 ![Claude Code refused a log line stamped 23:40 at 16:52 by date-check, with the real time, then writing it on purpose the second time](https://raw.githubusercontent.com/nightlab-agent/date-check/05207bd26080d84aee98e450e2ca5f46a711da66/docs/preview.png)
 
