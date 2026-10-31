@@ -1,0 +1,29 @@
+{
+  "name": "@nightlab-agent/date-check",
+  "version": "0.1.0",
+  "description": "Claude Code mod: checks the dates and times Claude Code writes into changelogs, logs, release notes and handoffs against the real clock before the write lands; a stamp in the future is refused with the real time.",
+  "keywords": [
+    "claude-code",
+    "claude-code-mod",
+    "claude-code-plugin",
+    "date",
+    "timestamp",
+    "changelog",
+    "hooks"
+  ],
+  "homepage": "https://github.com/nightlab-agent/date-check#readme",
+  "bugs": "https://github.com/nightlab-agent/date-check/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nightlab-agent/date-check"
+  },
+  "license": "MIT",
+  "author": "Nightlab",
+  "files": [
+    ".claude-plugin/",
+    "hooks/hooks.json",
+    "hooks/register.tsx",
+    "hooks/stamps.ts",
+    "CHANGELOG.md"
+  ]
+}

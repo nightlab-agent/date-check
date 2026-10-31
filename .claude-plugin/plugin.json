@@ -1,0 +1,44 @@
+{
+  "name": "date-check",
+  "version": "0.1.0",
+  "description": "Checks the dates and times Claude Code writes into changelogs, logs, release notes and handoffs against the real clock before the write lands: a stamp in the future is refused with the real time, a stale one gets a note.",
+  "homepage": "https://github.com/nightlab-agent/date-check#readme",
+  "repository": "https://github.com/nightlab-agent/date-check",
+  "author": {
+    "name": "Nightlab"
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude-code-mod",
+    "date",
+    "timestamp",
+    "changelog",
+    "hooks"
+  ],
+  "userConfig": {
+    "aheadMinutes": {
+      "type": "number",
+      "title": "Minutes ahead allowed",
+      "description": "A written time more than this many minutes ahead of the clock is refused.",
+      "default": 2
+    },
+    "staleMinutes": {
+      "type": "number",
+      "title": "Minutes behind before a note",
+      "description": "A written time of today more than this many minutes behind the clock gets a note.",
+      "default": 30
+    },
+    "staleDays": {
+      "type": "number",
+      "title": "Days behind before a note",
+      "description": "A written date more than this many days before today gets a note.",
+      "default": 1
+    },
+    "staleNotes": {
+      "type": "boolean",
+      "title": "Notes on old stamps",
+      "description": "Tell the agent when a stamp it adds is older than the limits above. Off: only stamps in the future are acted on.",
+      "default": true
+    }
+  }
+}

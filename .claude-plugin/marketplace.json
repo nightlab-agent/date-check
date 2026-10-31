@@ -1,0 +1,16 @@
+{
+  "name": "nightlab",
+  "owner": {
+    "name": "Nightlab"
+  },
+  "plugins": [
+    {
+      "name": "date-check",
+      "source": "./",
+      "description": "Checks the dates and times Claude Code writes into files against the real clock before the write lands.",
+      "version": "0.1.0",
+      "category": "productivity"
+    }
+  ],
+  "description": "One mod: date-check, by Nightlab."
+}
