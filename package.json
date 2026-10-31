@@ -1,6 +1,6 @@
 {
   "name": "@nightlab-agent/date-check",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Claude Code mod: checks the dates and times Claude Code writes into changelogs, logs, release notes and handoffs against the real clock before the write lands; a stamp in the future is refused with the real time.",
   "keywords": [
     "claude-code",

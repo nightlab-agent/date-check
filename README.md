@@ -57,7 +57,8 @@ lines. Nothing leaves your machine through this mod: it makes no network calls.
 
 ## How it works
 
-- `tool.call` on Write, Edit and Bash: finds the stamps the call adds, compares
+- One hook, `tool.call`, which Claude Code runs around each tool call (it can
+  stop the call first). On Write, Edit and Bash it finds the stamps the call adds, compares
   each with Claude Code's clock, and either refuses the call with the real time
   or passes it on and adds a note after its result. A failure of the mod itself
   never stops the call.
@@ -70,7 +71,9 @@ One line at the Claude Code prompt:
 /plugin install date-check --marketplace nightlab-agent/date-check
 ```
 
-Answer `y` to add the marketplace, then pick a scope. The same from a shell:
+Answer `y` to add the marketplace, then pick a scope (`user`: every project
+of yours; `project`: everyone who opens this repo; `local`: this repo, only
+you). The same from a shell:
 
 ```
 claude plugin install date-check --marketplace nightlab-agent/date-check

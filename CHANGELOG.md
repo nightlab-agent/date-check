@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 (2026-10-31)
+
+- README: says what each install scope means, and what the one hook is and when Claude Code runs it. No change
+  to the code.
+
 ## 0.1.0 (2026-10-31)
 
 - First version: before a Write, an Edit, or a shell command that writes to a file, finds the date and time stamps
