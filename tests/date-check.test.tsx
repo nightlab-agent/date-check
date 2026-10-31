@@ -149,3 +149,16 @@ test('shellWrite reads heredocs, echo and printf, and ignores redirects to /dev/
 test('addedLines keeps a repeated line once per time it is added', () => {
   expect(addedLines('a\nb\n', 'a\nb\nb\n')).toBe('b')
 })
+
+test('only Markdown and text files are judged: a future date in code goes through', async ($, on) => {
+  const w = world(on)
+  expect(await write($, '/p/src/fixtures.ts', '// Updated: 2030-01-01\nexport const day = "2030-01-01"\n')).not.toHaveProperty('deny')
+  expect(w.ran).toEqual(['Write'])
+})
+
+test('a changelog with no extension is judged like CHANGELOG.md', async ($, on) => {
+  const w = world(on)
+  const r = await write($, '/p/CHANGELOG', '## 0.2.0 (2026-11-03)\n')
+  expect(r.deny).toContain('2026-11-03')
+  expect(w.ran).toEqual([])
+})

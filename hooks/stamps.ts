@@ -29,7 +29,7 @@ const STAMP = DATE + TIME
 const LABEL = String.raw`(?:date|dated|updated|last[ _-]?updated|last[ _-]?modified|modified|released|release[ _-]?date|generated|written|created|as of|timestamp)`
 
 const heading = new RegExp(String.raw`^\s{0,3}#{1,6}\s.*?(?<![\d-])` + STAMP + String.raw`(?![\d-])`)
-const field = new RegExp(String.raw`(?:^|[\s*_|>(])` + LABEL + String.raw`\**\s*[:=]\s*\**["'\x60]?(?:on\s)?` + STAMP + String.raw`(?![\d-])`, 'i')
+const field = new RegExp(String.raw`^\s{0,3}(?:[-*+]\s+|>\s*|\|\s*)?[*_]*` + LABEL + String.raw`\**\s*[:=]\s*\**["'\x60]?(?:on\s)?` + STAMP + String.raw`(?![\d-])`, 'i')
 const opening = new RegExp(String.raw`^\s*(?:[-*+]\s+|>\s*)?[\[(]?` + STAMP + String.raw`(?![\d-])`)
 const timeOpening = /^\s*(?:[-*+]\s+|>\s*)?[\[(]?(\d{2}):(\d{2})(?::\d{2})?(?![\d:])[\])]?(?:\s|$|[,;|-])/
 
@@ -62,25 +62,45 @@ export const dateOfFile = (path: string) => {
   return m && valid(Number(m[1]), Number(m[2]), Number(m[3])) ? `${m[1]}-${m[2]}-${m[3]}` : undefined
 }
 
-/** The stamps in some lines of text. `fileDate` lets a bare `16:05` opening a line count as a stamp of that day. */
-export const stampsIn = (text: string, fileDate?: string): Stamp[] => {
+/** A line inside an indented code block: four spaces or a tab, not a list item. */
+const indentedCode = (line: string) => /^(?: {4}|\t)/.test(line) && !/^\s*(?:[-*+]|\d+[.)])\s/.test(line)
+
+/** The stamp a line carries, if any. `fileDate` lets a bare `16:05` opening a line count as a stamp of that day. */
+const lineStamp = (line: string, fileDate?: string): Stamp | undefined => {
+  let m: RegExpExecArray | null
+  if ((m = heading.exec(line))) return build(m, 1, line, 'heading')
+  if ((m = field.exec(line))) return build(m, 1, line, 'field')
+  if ((m = opening.exec(line))) return build(m, 1, line, 'line-start')
+  if (fileDate && (m = timeOpening.exec(line)) && Number(m[1]) < 24 && Number(m[2]) < 60)
+    return { text: `${m[1]}:${m[2]}`, line: line.trim().slice(0, 120), where: 'line-start', date: fileDate, minutes: Number(m[1]) * 60 + Number(m[2]) }
+  return undefined
+}
+
+/**
+ * The stamps a change adds: the stamps on lines of `after` that `before` did not have, read
+ * in the whole of `after` (so a line inside a code block the file already had is seen as
+ * code). A stamp whose text was on a line the change removes is carried over, not added.
+ */
+export const newStamps = (before: string, after: string, fileDate?: string): Stamp[] => {
+  const had = new Map<string, number>()
+  for (const l of before.split(/\r?\n/)) had.set(l, (had.get(l) ?? 0) + 1)
   const out: Stamp[] = []
   let fence = false
-  for (const line of text.split(/\r?\n/)) {
+  for (const line of after.split(/\r?\n/)) {
+    const n = had.get(line) ?? 0
+    const isNew = n === 0
+    if (!isNew) had.set(line, n - 1)
     if (/^\s*(```|~~~)/.test(line)) { fence = !fence; continue }
-    if (fence) continue
-    let m: RegExpExecArray | null
-    let s: Stamp | undefined
-    if ((m = heading.exec(line))) s = build(m, 1, line, 'heading')
-    else if ((m = field.exec(line))) s = build(m, 1, line, 'field')
-    else if ((m = opening.exec(line))) s = build(m, 1, line, 'line-start')
-    else if (fileDate && (m = timeOpening.exec(line)) && Number(m[1]) < 24 && Number(m[2]) < 60) {
-      s = { text: `${m[1]}:${m[2]}`, line: line.trim().slice(0, 120), where: 'line-start', date: fileDate, minutes: Number(m[1]) * 60 + Number(m[2]) }
-    }
+    if (fence || !isNew || indentedCode(line)) continue
+    const s = lineStamp(line, fileDate)
     if (s) out.push(s)
   }
-  return out
+  const removed = [...had.entries()].filter(([, n]) => n > 0).map(([l]) => l).join('\n')
+  return out.filter(s => !removed.includes(s.text))
 }
+
+/** The stamps in some lines of text. */
+export const stampsIn = (text: string, fileDate?: string): Stamp[] => newStamps('', text, fileDate)
 
 /** The lines of `after` that are not lines of `before`: what an edit adds. */
 export const addedLines = (before: string, after: string) => {

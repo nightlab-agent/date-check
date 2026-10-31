@@ -22,22 +22,28 @@ screen.
 
 - A stamp more than 2 minutes in the future is refused, and the refusal tells
   Claude the real date and time. If the future date is meant (a deadline, a
-  planned release), Claude writes the same text again and it goes through.
+  planned release), Claude writes the same line again and it goes through.
 - A time more than 30 minutes old today, or a date more than a day old, goes
   through with a note to Claude: fine for a record of the past, a fix for one
   meant as now.
 - What counts as a stamp: a date in a Markdown heading (`## 0.2.0 (2026-11-03)`),
-  a labelled field (`Date:`, `Updated:`, `Released:`, `date:` in frontmatter),
-  or a date or date and time at the start of a line. A bare `16:05` at the start
-  of a line counts only in a file whose name has a date (`log/2026-10-31.md`).
+  a labelled field that starts its line (`Date:`, `Updated:`, `Released:`,
+  `date:` in frontmatter), or a date or date and time at the start of a line. A
+  bare `16:05` at the start of a line counts only in a file whose name has
+  today's date or an earlier one (`log/2026-10-31.md`); in a file named for a
+  later day it is a plan.
 - Not a stamp: a date inside a sentence ("the outage on 2024-03-01"), anything
-  in a code block, and any line the file already had. Only what the call adds
-  is judged.
+  in a fenced or indented code block, and any line the file already had. Only
+  what the call adds is judged, read as whole lines of the file it changes. A
+  stamp that was already on a line the call rewrites is kept, not judged.
+- Only Markdown and text files are checked (`.md`, `.markdown`, `.mdx`, `.txt`,
+  `.text`, `.rst`, `.adoc`, `.asciidoc`, `.org`, `.log`, and `CHANGELOG`, `HISTORY`, `NEWS`, `RELEASES`,
+  `NOTES` with no extension). A date in code is data, not a stamp.
 - Dates are found as `YYYY-MM-DD`, with an optional time and zone
   (`2026-10-31 16:05`, `2026-10-31T20:05Z`). Other formats (`Oct 31, 2026`) are
   not checked yet.
-- It checks Write, Edit, and shell commands that write to a file with `>>`,
-  `>` or `tee`.
+- It checks Write, Edit, and shell commands where `echo` or `printf` writes to
+  a file with `>>`, `>` or `| tee`, or `cat` or `tee` writes a heredoc to one.
 
 Settings (asked when you enable the plugin): minutes ahead allowed (2), minutes
 behind before a note (30), days behind before a note (1), notes on old stamps
@@ -45,7 +51,7 @@ behind before a note (30), days behind before a note (1), notes on old stamps
 
 ## What it writes
 
-Nothing. It reads the file a Write is about to replace, to judge only the new
+Nothing. It reads the file a Write or an Edit is about to change, to judge only the new
 lines. Nothing leaves your machine through this mod: it makes no network calls.
 
 ## How it works
