@@ -17,9 +17,16 @@ Seen in a Claude Code 2.1.312 terminal (120 columns) on 2026-10-31 at 16:52.
 Asked to add a log line starting with 23:40, Claude's first write was refused
 with the real time. Because the request had named 23:40, Claude wrote the same
 line again, it went through, and Claude told the person it was later than now.
-The same happened with a changelog entry dated 2026-11-03. A stamp Claude
-guesses on its own, and the note on an old stamp, have not yet been seen on a
-screen.
+The same happened with a changelog entry dated 2026-11-03.
+
+![Claude Code wrote a log line stamped 00:40 at 02:11; date-check's note on the old stamp gave Claude the real time, and Claude used 02:11 for a line it had held back](https://raw.githubusercontent.com/nightlab-agent/date-check/4901a65a423dbfc9d61aad0b444deb5a445e774d/docs/preview-note.png)
+
+Seen on 2026-11-01 at 02:11 EST, same terminal. Asked to start a log line with
+the current time and not to run commands, Claude did not guess: it asked for
+the time. Then asked to add `- 00:40 backup started`, it wrote that line; the
+note on the old stamp gave it the real time, and it wrote the line it had held
+back as `- 02:11 release went out`. A stamp Claude guesses on its own has not
+yet been seen on a screen.
 
 - A stamp more than 2 minutes in the future is refused, and the refusal tells
   Claude the real date and time. If the future date is meant (a deadline, a
