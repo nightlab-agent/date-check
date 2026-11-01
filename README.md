@@ -56,6 +56,14 @@ Settings (asked when you enable the plugin): minutes ahead allowed (2), minutes
 behind before a note (30), days behind before a note (1), notes on old stamps
 (on).
 
+![Claude Code refused a log line stamped 01:58 EST at 01:39 EST by date-check, with the real time and its UTC offset, and Claude asked whether the stamp was meant as EST or EDT](https://raw.githubusercontent.com/nightlab-agent/date-check/003f73177b78ef78659626e8cacbf06d1ab5753d/docs/preview-zone.png)
+
+Seen in a Claude Code 2.1.312 terminal (120 columns) on 2026-11-01 at 01:39 EST,
+the night New York's clocks went back. Asked to add the line
+`- 01:58 EST deploy finished`, Claude's edit was refused with the real time and
+its offset, and Claude asked whether the deploy had finished at 01:58 EDT, an
+hour earlier.
+
 ## What it writes
 
 Nothing. It reads the file a Write or an Edit is about to change, to judge only the new
