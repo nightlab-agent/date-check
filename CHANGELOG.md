@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.4 (2026-11-02)
 
 - Every prompt now carries the clock, so Claude knows the time instead of guessing it: the
   local weekday, date, time, UTC offset and zone name, and how long ago your previous message
