@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Every prompt now carries the clock, so Claude knows the time instead of guessing it: the
+  local weekday, date, time, UTC offset and zone name, and how long ago your previous message
+  came (`it is Sunday 2026-11-01 05:58 local time, UTC-05:00 (America/New_York, EST). The
+  person's previous message came 3 h 12 min ago.`). A background task's notification or
+  another plugin's prompt gets the time but does not count as your previous message. The
+  "clock on every prompt" setting turns it off. Before, Claude Code gave Claude the date only,
+  with no time and no zone.
+
 ## 0.1.3 (2026-11-01)
 
 - A new Markdown or text file whose name carries a date more than a day before today

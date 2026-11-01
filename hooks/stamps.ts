@@ -164,6 +164,36 @@ export const nowText = (ms: number) => {
   return `${dayOf(ms)} ${pad(d.getHours())}:${pad(d.getMinutes())} local time, ${zone}`
 }
 
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+/** The zone's name where the runtime knows it (`America/New_York, EST`); '' where it does not. */
+const zoneName = (ms: number) => {
+  try {
+    const iana = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const short = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(new Date(ms)).find(p => p.type === 'timeZoneName')?.value
+    return [iana, short && !/^GMT[+-]/.test(short) ? short : ''].filter(Boolean).join(', ')
+  } catch {
+    return ''
+  }
+}
+/**
+ * The clock a prompt carries: weekday, date, local time and offset, and the zone's name:
+ * `Sunday 2026-11-01 05:58 local time, UTC-05:00 (America/New_York, EST)`.
+ */
+export const clockText = (ms: number) => {
+  const name = zoneName(ms)
+  return `${DAYS[new Date(ms).getDay()]} ${nowText(ms)}${name ? ` (${name})` : ''}`
+}
+/** A span of time as a person says it: `under a minute`, `12 min`, `3 h 5 min`, `2 days 4 h`. */
+export const gapText = (ms: number) => {
+  const m = Math.floor(Math.max(0, ms) / 60000)
+  if (m < 1) return 'under a minute'
+  if (m < 60) return `${m} min`
+  const h = Math.floor(m / 60)
+  if (h < 24) return m % 60 ? `${h} h ${m % 60} min` : `${h} h`
+  const d = Math.floor(h / 24)
+  return `${d} day${d === 1 ? '' : 's'}${h % 24 ? ` ${h % 24} h` : ''}`
+}
+
 /** The local zone's UTC offset in minutes at a moment (New York in winter: -300). */
 export type ZoneAt = (ms: number) => number
 const localZone: ZoneAt = ms => -new Date(ms).getTimezoneOffset()

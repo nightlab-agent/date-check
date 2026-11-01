@@ -1,5 +1,5 @@
 import type { EngineInterface, Register } from 'claude-code'
-import { dateOfFile, dayOf, judge, judgeName, LIMITS, newStamps } from './stamps'
+import { clockText, dateOfFile, dayOf, gapText, judge, judgeName, LIMITS, newStamps } from './stamps'
 import type { Limits, Verdict } from './stamps'
 
 // date-check, the hooks module. Before a Write, an Edit, or a shell command that appends to
@@ -13,8 +13,11 @@ import type { Limits, Verdict } from './stamps'
 //   on 2026-11-01) is refused once with the real date, the same way; a later day is a plan.
 // Lines the file already had are never judged: only what this call adds. Only Markdown and
 // text files (isText): a date in code is data, not a stamp.
+// And before the agent writes anything: each prompt carries the clock (promptClock), the local
+// weekday, date, time and zone, and how long ago the person's previous message came, so the
+// agent has the real time instead of a guess.
 
-type Options = { aheadMinutes?: unknown; staleMinutes?: unknown; staleDays?: unknown; staleNotes?: unknown }
+type Options = { aheadMinutes?: unknown; staleMinutes?: unknown; staleDays?: unknown; staleNotes?: unknown; promptClock?: unknown }
 type Call = { tool: string; file_path?: string; content?: string; old_string?: string; new_string?: string; replace_all?: boolean; command?: string }
 
 const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : d)
@@ -97,6 +100,13 @@ export const staleNote = (vs: Verdict[]) =>
   `date-check: ${vs.map(quote).join('; ')} ${vs.length === 1 ? 'is' : 'are'} older than now (${vs[0]!.real}). ` +
   `If ${vs.length === 1 ? 'it records' : 'they record'} something past, leave ${vs.length === 1 ? 'it' : 'them'}; if ${vs.length === 1 ? 'it was' : 'they were'} meant as now, correct ${vs.length === 1 ? 'it' : 'them'}.`
 
+/** Prompts the person sent: typed, from Remote Control, or the SDK host's own turn. */
+const PERSON = new Set(['composer', 'bridge', 'sdk'])
+
+export const clockLine = (now: number, since?: number) =>
+  `date-check: it is ${clockText(now)}.` +
+  (since === undefined ? '' : ` The person's previous message came ${gapText(now - since)} ago.`)
+
 export const register: Register = (on, options: Options = {}) => {
   const limits: Limits = {
     aheadMinutes: num(options.aheadMinutes, LIMITS.aheadMinutes),
@@ -109,6 +119,24 @@ export const register: Register = (on, options: Options = {}) => {
   // before the refusal (two calls at once) is refused too.
   const meant = new Map<string, number>()
   let order = 0
+
+  if (options.promptClock !== false) {
+    // The latest moment a person's prompt entered; a clock read that comes back late (two
+    // prompts at once) never moves it back.
+    let lastPerson: number | undefined
+    on('prompt.submit', async ($, e, next) => {
+      let line: string | undefined
+      try {
+        const now = await $.clock.now()
+        const person = PERSON.has(e.origin?.kind)
+        line = clockLine(now, person ? lastPerson : undefined)
+        if (person) lastPerson = Math.max(lastPerson ?? now, now)
+      } catch {
+        // A failure of this mod never stops the prompt.
+      }
+      return next(line ? { ...e, context: [...(e.context ?? []), line] } : e)
+    })
+  }
 
   on('tool.call', async ($, e, next) => {
     const x = e as unknown as Call

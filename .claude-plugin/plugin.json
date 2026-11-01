@@ -39,6 +39,12 @@
       "title": "Notes on old stamps",
       "description": "Tell the agent when a stamp it adds is older than the limits above. Off: only stamps in the future are acted on.",
       "default": true
+    },
+    "promptClock": {
+      "type": "boolean",
+      "title": "The clock on every prompt",
+      "description": "Each prompt carries the local weekday, date, time and zone, and how long ago your previous message came, so Claude has the real time instead of a guess. Off: nothing is added to prompts.",
+      "default": true
     }
   }
 }
