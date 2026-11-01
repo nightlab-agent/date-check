@@ -29,7 +29,7 @@ note on the old stamp gave it the real time, and it wrote the line it had held
 back as `- 02:11 release went out`. A stamp Claude guesses on its own has not
 yet been seen on a screen.
 
-![With date-check telling Claude the time on each prompt, Claude wrote a log line starting 05:54 at 05:54 without running a command, then named the day, the time zone and how long ago the previous message came](docs/preview-clock.png)
+![With date-check telling Claude the time on each prompt, Claude wrote a log line starting 05:54 at 05:54 without running a command, then named the day, the time zone and how long ago the previous message came](https://raw.githubusercontent.com/nightlab-agent/date-check/1f80c3f7744ebb8d6edab7dfb767d82b42cb2e5b/docs/preview-clock.png)
 
 Seen on 2026-11-01 at 05:54 EST, same terminal, with the clock on every
 prompt (new in 0.1.4). The same request as above, to
