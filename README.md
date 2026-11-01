@@ -31,8 +31,8 @@ yet been seen on a screen.
 
 ![With date-check telling Claude the time on each prompt, Claude wrote a log line starting 05:54 at 05:54 without running a command, then named the day, the time zone and how long ago the previous message came](docs/preview-clock.png)
 
-Seen on 2026-11-01 at 05:54 EST, same terminal, with the prompt clock (not
-yet released; it ships in the next version). The same request as above, to
+Seen on 2026-11-01 at 05:54 EST, same terminal, with the clock on every
+prompt (new in 0.1.4). The same request as above, to
 start a log line with the current time and not run commands: this time Claude
 wrote `05:54 Release went out.` and said the time came from the session
 context. Asked what day and time it was, which zone, and how long ago the
