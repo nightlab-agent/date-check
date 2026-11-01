@@ -43,6 +43,18 @@ on Eastern Standard Time, under a minute ago.
   weekday, date, time, UTC offset and zone name, and how long ago your
   previous message came. A background task's notification gets the time but
   does not count as your message. The "clock on every prompt" setting turns it off.
+- Claude can leave the time to the clock: `⟦NOW⟧` (date and time), `⟦DATE⟧`,
+  `⟦TIME⟧` or `⟦NOW-ISO⟧` in what it writes (a file, an edit, a shell command)
+  is replaced with the machine's local time as the write lands, and Claude is
+  told what went in. One inside backticks or a code block is kept as written.
+  `⟦NOW⟧` has a space in it, so in a file name use `⟦DATE⟧`. The prompt clock
+  tells Claude about them; the "fill placeholders" setting turns them off.
+
+![Claude Code writing a log line whose time came from the clock: "06:14 The release went out."](docs/preview-fill.png)
+
+Seen in a preview on 2026-11-01: asked to start a log line with the exact time
+it is written, Claude wrote `06:14 The release went out.` and said the time
+was filled in from the clock as the file was written.
 
 - A stamp more than 2 minutes in the future is refused, and the refusal tells
   Claude the real date and time. If the future date is meant (a deadline, a
