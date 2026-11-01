@@ -1,5 +1,5 @@
 # State
 
-- Version 0.1.1, 2026-10-31. Tests: 40 pass (19 own, 21 from the code review) (`claude plugin test .`).
-- Seen on a screen (2026-10-31, Claude Code 2.1.312): a future stamp refused with the real time, then written again on purpose (changelog date and log time). Not seen: a guessed stamp corrected; the stale note.
+- Version 0.1.3 public; 0.1.4 unreleased (prompt clock, placeholders), 2026-11-01. Tests: 127 pass (`claude plugin test .`).
+- Seen on a screen (2026-10-31, Claude Code 2.1.312): a future stamp refused with the real time, then written again on purpose (changelog date and log time). The stale note seen (README). Prompt clock seen 2026-11-01 (preview 055358); placeholders seen (preview 061413).
 - Open: stamps in other formats (`Oct 31, 2026`, `31/10/2026`) are not found yet.

@@ -121,3 +121,18 @@ test('comparison: by default the prompt clock tells the agent the placeholders e
   const p = (await $.prompt.submit({ text: 'go', origin: { kind: 'composer' } } as never)) as { context?: string[] }
   expect((p.context ?? []).join(' ')).toContain('write ⟦NOW⟧ (date and time), ⟦DATE⟧ (also in a file name) or ⟦TIME⟧')
 })
+
+// Words critic: "in a file name use ⟦DATE⟧" must hold for a Write's path too, not only in a shell command.
+test('a Write to log/⟦DATE⟧.md creates today\'s file', async ($, on) => {
+  const w = world(on)
+  const r = await write($, '/p/log/⟦DATE⟧.md', '- ⟦TIME⟧ started\n')
+  expect(w.fs.get('/p/log/2026-11-01.md')).toBe('- 06:20 started\n')
+  expect(w.fs.has('/p/log/⟦DATE⟧.md')).toBe(false)
+  expect(r.context?.join(' ')).toContain('⟦DATE⟧ 2026-11-01')
+})
+
+test('comparison: a path with no placeholder is left alone', async ($, on) => {
+  const w = world(on)
+  await write($, '/p/log/today.md', '- ⟦TIME⟧ started\n')
+  expect(w.fs.get('/p/log/today.md')).toBe('- 06:20 started\n')
+})

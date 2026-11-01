@@ -44,13 +44,13 @@ on Eastern Standard Time, under a minute ago.
   previous message came. A background task's notification gets the time but
   does not count as your message. The "clock on every prompt" setting turns it off.
 - Claude can leave the time to the clock: `⟦NOW⟧` (date and time), `⟦DATE⟧`,
-  `⟦TIME⟧` or `⟦NOW-ISO⟧` in what it writes (a file, an edit, a shell command)
+  `⟦TIME⟧` or `⟦NOW-ISO⟧` in what it writes (a file and its name, an edit, a shell command)
   is replaced with the machine's local time as the write lands, and Claude is
   told what went in. One inside backticks or a code block is kept as written.
   `⟦NOW⟧` has a space in it, so in a file name use `⟦DATE⟧`. The prompt clock
-  tells Claude about them; the "fill placeholders" setting turns them off.
+  tells Claude about `⟦NOW⟧`, `⟦DATE⟧` and `⟦TIME⟧`; the "fill placeholders" setting turns them off.
 
-![Claude Code writing a log line whose time came from the clock: "06:14 The release went out."](docs/preview-fill.png)
+![Claude Code writing a log line, "06:14 The release went out.", and saying the time came from the clock](docs/preview-fill.png)
 
 Seen in a preview on 2026-11-01: asked to start a log line with the exact time
 it is written, Claude wrote `06:14 The release went out.` and said the time

@@ -49,7 +49,7 @@
     "fill": {
       "type": "boolean",
       "title": "Fill placeholders",
-      "description": "Replace ⟦NOW⟧, ⟦DATE⟧, ⟦TIME⟧ and ⟦NOW-ISO⟧ in what Claude writes with the local time as the write lands, so the time is never typed. Off: placeholders stay as written.",
+      "description": "Replace ⟦NOW⟧, ⟦DATE⟧, ⟦TIME⟧ and ⟦NOW-ISO⟧ in what Claude writes with the local time as the write lands, so Claude need not type the time. Off: placeholders stay as written.",
       "default": true
     }
   }

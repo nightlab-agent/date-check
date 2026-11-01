@@ -110,13 +110,21 @@ export const clockLine = (now: number, since?: number, fill = true) =>
   (since === undefined ? '' : ` The person's previous message came ${gapText(now - since)} ago.`) +
   (fill ? ' To record the moment a file is written, write ⟦NOW⟧ (date and time), ⟦DATE⟧ (also in a file name) or ⟦TIME⟧: the clock fills it in as the write lands.' : '')
 
-/** The call with its placeholders filled from the clock, and which ones were. */
+/** The call with its placeholders filled from the clock (the text it writes, and a Write's or Edit's file path), and which ones were. */
 const filledCall = (x: Call, now: number): { call: Call; filled: string[] } => {
   const key = x.tool === 'Write' ? 'content' : x.tool === 'Edit' ? 'new_string' : 'command'
+  const call: Call = { ...x }
+  const filled = new Set<string>()
   const v = x[key]
-  if (typeof v !== 'string' || !v.includes('⟦')) return { call: x, filled: [] }
-  const f = fillNow(v, now, x.tool !== 'Bash')
-  return f.filled.length ? { call: { ...x, [key]: f.text }, filled: f.filled } : { call: x, filled: [] }
+  if (typeof v === 'string' && v.includes('⟦')) {
+    const f = fillNow(v, now, x.tool !== 'Bash')
+    if (f.filled.length) { call[key] = f.text; f.filled.forEach(t => filled.add(t)) }
+  }
+  if (x.tool !== 'Bash' && x.file_path?.includes('⟦')) {
+    const f = fillNow(x.file_path, now, false)
+    if (f.filled.length) { call.file_path = f.text; f.filled.forEach(t => filled.add(t)) }
+  }
+  return filled.size ? { call, filled: [...filled] } : { call: x, filled: [] }
 }
 
 export const register: Register = (on, options: Options = {}) => {
