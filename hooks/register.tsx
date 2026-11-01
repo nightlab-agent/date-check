@@ -1,5 +1,5 @@
 import type { EngineInterface, Register } from 'claude-code'
-import { clockText, dateOfFile, dayOf, fillNow, gapText, judge, judgeName, LIMITS, newStamps } from './stamps'
+import { clockText, dateOfFile, dayOf, fillNow, gapText, judge, judgeName, LIMITS, newStamps, unfill } from './stamps'
 import type { Limits, Verdict } from './stamps'
 
 // date-check, the hooks module. Before a Write, an Edit, or a shell command that appends to
@@ -108,14 +108,14 @@ const PERSON = new Set(['composer', 'bridge', 'slack-ping', 'sdk'])
 export const clockLine = (now: number, since?: number, fill = true) =>
   `date-check: it is ${clockText(now)}.` +
   (since === undefined ? '' : ` The person's previous message came ${gapText(now - since)} ago.`) +
-  (fill ? ' To record the moment a file is written, write ⟦NOW⟧ (date and time), ⟦DATE⟧ or ⟦TIME⟧: the clock fills it in as the write lands.' : '')
+  (fill ? ' To record the moment a file is written, write ⟦NOW⟧ (date and time), ⟦DATE⟧ (also in a file name) or ⟦TIME⟧: the clock fills it in as the write lands.' : '')
 
 /** The call with its placeholders filled from the clock, and which ones were. */
 const filledCall = (x: Call, now: number): { call: Call; filled: string[] } => {
   const key = x.tool === 'Write' ? 'content' : x.tool === 'Edit' ? 'new_string' : 'command'
   const v = x[key]
   if (typeof v !== 'string' || !v.includes('⟦')) return { call: x, filled: [] }
-  const f = fillNow(v, now)
+  const f = fillNow(v, now, x.tool !== 'Bash')
   return f.filled.length ? { call: { ...x, [key]: f.text }, filled: f.filled } : { call: x, filled: [] }
 }
 
@@ -197,7 +197,8 @@ export const register: Register = (on, options: Options = {}) => {
       verdicts = []
       name = undefined
     }
-    const key = (v: Verdict) => `${file}\n${v.stamp.line}`
+    // Keyed by the line as the agent wrote it, so a retry with the same placeholder a minute later is the same line.
+    const key = (v: Verdict) => `${file}\n${unfill(v.stamp.line, filled)}`
     const future = verdicts.filter(v => v.kind === 'future')
     const fresh = future.filter(v => !((meant.get(key(v)) ?? Infinity) < began))
     // By the file's name alone, so a retry spelled another way (relative, absolute) is the same file.

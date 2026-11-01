@@ -9,6 +9,13 @@
   another plugin's prompt gets the time but does not count as your previous message. The
   "clock on every prompt" setting turns it off. Before, Claude Code gave Claude the date only,
   with no time and no zone.
+- Claude can leave the time to the clock: `⟦NOW⟧` (date and time), `⟦DATE⟧`, `⟦TIME⟧` or
+  `⟦NOW-ISO⟧` in what it writes (a Write, an Edit, a shell command) is replaced with the
+  machine's local time as the call lands, and Claude is told what went in. One inside
+  backticks or a code block is kept as written. The prompt clock tells Claude the placeholders
+  exist; the "fill placeholders" setting turns them off. The names follow a request in
+  MikalaiKryvusha/KAIF#170, which found that a clock in the prompt still left an agent writing
+  the minute after.
 
 ## 0.1.3 (2026-11-01)
 

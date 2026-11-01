@@ -45,6 +45,12 @@
       "title": "The clock on every prompt",
       "description": "Each prompt carries the local weekday, date, time and zone, and how long ago your previous message came, so Claude has the real time instead of a guess. Off: nothing is added to prompts.",
       "default": true
+    },
+    "fill": {
+      "type": "boolean",
+      "title": "Fill placeholders",
+      "description": "Replace ⟦NOW⟧, ⟦DATE⟧, ⟦TIME⟧ and ⟦NOW-ISO⟧ in what Claude writes with the local time as the write lands, so the time is never typed. Off: placeholders stay as written.",
+      "default": true
     }
   }
 }

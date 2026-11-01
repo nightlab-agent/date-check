@@ -119,5 +119,5 @@ test('comparison: by default the prompt clock tells the agent the placeholders e
   world(on)
   on('prompt.submit', (_, e) => ({ text: e.text, context: e.context }))
   const p = (await $.prompt.submit({ text: 'go', origin: { kind: 'composer' } } as never)) as { context?: string[] }
-  expect((p.context ?? []).join(' ')).toContain('write ⟦NOW⟧ (date and time), ⟦DATE⟧ or ⟦TIME⟧')
+  expect((p.context ?? []).join(' ')).toContain('write ⟦NOW⟧ (date and time), ⟦DATE⟧ (also in a file name) or ⟦TIME⟧')
 })

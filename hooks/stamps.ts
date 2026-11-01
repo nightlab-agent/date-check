@@ -167,24 +167,42 @@ export const nowText = (ms: number) => {
 /**
  * Placeholders the agent writes instead of typing a time, filled from the clock as the call
  * lands: `⟦NOW⟧` 2026-11-01 06:20, `⟦DATE⟧` 2026-11-01, `⟦TIME⟧` 06:20, `⟦NOW-ISO⟧`
- * 2026-11-01T06:20:41-05:00, all local. One inside backticks or a fenced code block is kept
- * as written (a README that shows the placeholder). Exactly these spellings: `⟦now⟧`, `[NOW]`
- * and `⟦NOW ⟧` are text.
+ * 2026-11-01T06:20:41-05:00, all local. One in code is kept as written (a README that shows
+ * the placeholder): a code span, a ``` or ~~~ fence (closed by the same mark, as long or
+ * longer), and, in a file (`indented`), an indented code line, as the judge reads code.
+ * Exactly these spellings: `⟦now⟧`, `[NOW]` and `⟦NOW ⟧` are text. ⟦NOW⟧ has a space in
+ * it: in a file name or an unquoted shell word, ⟦DATE⟧ is the one to use.
  */
-export const fillNow = (text: string, ms: number): { text: string; filled: string[] } => {
+export const fillNow = (text: string, ms: number, indented = true): { text: string; filled: string[] } => {
   const d = new Date(ms)
   const o = -d.getTimezoneOffset()
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
   const iso = `${dayOf(ms)}T${time}:${pad(d.getSeconds())}${o < 0 ? '-' : '+'}${pad(Math.floor(Math.abs(o) / 60))}:${pad(Math.abs(o) % 60)}`
   const value: Record<string, string> = { 'NOW-ISO': iso, NOW: `${dayOf(ms)} ${time}`, DATE: dayOf(ms), TIME: time }
-  const filled: string[] = []
-  const out = text.replace(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)|⟦(NOW-ISO|NOW|DATE|TIME)⟧/g, (m, code: string | undefined, tok: string | undefined) => {
-    if (code !== undefined || !tok) return m
-    filled.push(`⟦${tok}⟧ ${value[tok]}`)
-    return value[tok]!
+  const filled = new Set<string>()
+  let fence: string | undefined
+  const lines = text.split('\n').map(line => {
+    const mark = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1]
+    if (fence !== undefined) {
+      if (mark && mark[0] === fence[0] && mark.length >= fence.length && /^ {0,3}[`~]+\s*$/.test(line)) fence = undefined
+      return line
+    }
+    if (mark && !(mark[0] === '`' && line.slice(line.indexOf(mark) + mark.length).includes('`'))) { fence = mark; return line }
+    if (indented && indentedCode(line)) return line
+    return line.replace(/(?<!`)(`+)(?!`)[^]*?(?<!`)\1(?!`)|⟦(NOW-ISO|NOW|DATE|TIME)⟧/g, (m, code: string | undefined, tok: string | undefined) => {
+      if (code !== undefined || !tok) return m
+      filled.add(`⟦${tok}⟧ ${value[tok]}`)
+      return value[tok]!
+    })
   })
-  return { text: out, filled: [...new Set(filled)] }
+  return { text: lines.join('\n'), filled: [...filled] }
 }
+
+/** A line as written before filling: each filled value back to its placeholder, longest first. */
+export const unfill = (line: string, filled: string[]) =>
+  filled.map(f => [f.slice(0, f.indexOf('⟧') + 1), f.slice(f.indexOf('⟧') + 2)] as const)
+    .sort((x, y) => y[1].length - x[1].length)
+    .reduce((l, [tok, v]) => l.split(v).join(tok), line)
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 /** The zone's name where the runtime knows it (`America/New_York, EST`); '' where it does not. */
