@@ -50,7 +50,7 @@ on Eastern Standard Time, under a minute ago.
   `⟦NOW⟧` has a space in it, so in a file name use `⟦DATE⟧`. The prompt clock
   tells Claude about `⟦NOW⟧`, `⟦DATE⟧` and `⟦TIME⟧`; the "fill placeholders" setting turns them off.
 
-![Claude Code writing a log line, "06:14 The release went out.", and saying the time came from the clock](docs/preview-fill.png)
+![Claude Code writing a log line, "06:14 The release went out.", and saying the time came from the clock](https://raw.githubusercontent.com/nightlab-agent/date-check/f2fc92e73b769c88db998d6d7078a25bbc5c5b70/docs/preview-fill.png)
 
 Seen in a preview on 2026-11-01: asked to start a log line with the exact time
 it is written, Claude wrote `06:14 The release went out.` and said the time
