@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.3 (2026-11-01)
+
+- A new Markdown or text file whose name carries a date more than a day before today
+  (`briefs/daily-brief-2025-06-12.md` created on 2026-11-01) is refused once, with the real
+  date. If that date is meant (a record of that day), Claude writes the same file again and it
+  goes through. A name with today's date, yesterday's or a later day's (a plan) is not judged,
+  nor a file that already exists, nor a date in a folder's name. The days allowed follow the
+  "days behind" setting. Before, only the stamps inside a file were checked, never its name.
+
 ## 0.1.2 (2026-11-01)
 
 - These zone names after a time are now read: UTC, GMT, EST, EDT, CST, CDT, MST, MDT, PST, PDT,

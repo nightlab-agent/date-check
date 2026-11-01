@@ -1,5 +1,5 @@
 import type { EngineInterface, Register } from 'claude-code'
-import { dateOfFile, dayOf, judge, LIMITS, newStamps } from './stamps'
+import { dateOfFile, dayOf, judge, judgeName, LIMITS, newStamps } from './stamps'
 import type { Limits, Verdict } from './stamps'
 
 // date-check, the hooks module. Before a Write, an Edit, or a shell command that appends to
@@ -9,6 +9,8 @@ import type { Limits, Verdict } from './stamps'
 //   the same line written to the same file a second time goes through (a deadline or a plan
 //   can be in the future on purpose), with a note;
 // - a stamp older than the limits goes through with a note the agent reads after the result.
+// - a new file whose name carries a day more than staleDays past (logs/2025-06-12.md written
+//   on 2026-11-01) is refused once with the real date, the same way; a later day is a plan.
 // Lines the file already had are never judged: only what this call adds. Only Markdown and
 // text files (isText): a date in code is data, not a stamp.
 
@@ -52,11 +54,12 @@ export const shellWrite = (command: string): { file: string; text: string } | un
 }
 
 /** What a call changes in which file: the file's text before and after it. */
-async function change($: EngineInterface, x: Call): Promise<{ file: string; before: string; after: string }> {
+async function change($: EngineInterface, x: Call): Promise<{ file: string; before: string; after: string; created?: boolean }> {
   const none = { file: '', before: '', after: '' }
   if (x.tool === 'Write' && typeof x.content === 'string' && x.file_path) {
-    const before = (await $.fs.exists(x.file_path)) ? await $.fs.read(x.file_path) : ''
-    return { file: x.file_path, before, after: x.content }
+    const exists = await $.fs.exists(x.file_path)
+    const before = exists ? await $.fs.read(x.file_path) : ''
+    return { file: x.file_path, before, after: x.content, created: !exists }
   }
   if (x.tool === 'Edit' && typeof x.new_string === 'string' && typeof x.old_string === 'string' && x.file_path) {
     const before = (await $.fs.exists(x.file_path)) ? await $.fs.read(x.file_path) : ''
@@ -69,7 +72,11 @@ async function change($: EngineInterface, x: Call): Promise<{ file: string; befo
   }
   if (x.tool === 'Bash' && typeof x.command === 'string') {
     const w = shellWrite(x.command)
-    return w ? { file: w.file, before: '', after: w.text } : none
+    if (!w) return none
+    // Whether the shell's file is new is only known when its path means one place: not under
+    // `~` (the engine does not expand it) and not after a `cd` in the same command.
+    const sure = !w.file.startsWith('~') && !/(?:^|[;&|\n]\s*)(?:cd|pushd)\s/.test(x.command)
+    return { file: w.file, before: '', after: w.text, created: sure && !(await $.fs.exists(w.file)) }
   }
   return none
 }
@@ -80,6 +87,11 @@ export const refusal = (vs: Verdict[]) =>
   `date-check: ${vs.map(quote).join('; ')} ${vs.length === 1 ? 'is' : 'are'} in the future. ` +
   `It is ${vs[0]!.real} now. Write the real date and time, or leave the stamp out. ` +
   `If a future date is meant (a deadline, a planned release), write the same text again and it goes through.`
+
+export const nameRefusal = (file: string, n: { date: string; real: string }) =>
+  `date-check: the new file's name says ${n.date} (${file.split(/[/\\]/).pop()}), a day that has passed. ` +
+  `It is ${n.real} now. If the file is for today, name it for today. ` +
+  `If that date is meant (a record of that day), write the same file again and it goes through.`
 
 export const staleNote = (vs: Verdict[]) =>
   `date-check: ${vs.map(quote).join('; ')} ${vs.length === 1 ? 'is' : 'are'} older than now (${vs[0]!.real}). ` +
@@ -103,11 +115,13 @@ export const register: Register = (on, options: Options = {}) => {
     if (x.tool !== 'Write' && x.tool !== 'Edit' && x.tool !== 'Bash') return next(e)
     const began = ++order
     let verdicts: Verdict[] = []
+    let name: ReturnType<typeof judgeName>
     let file = ''
     try {
       const now = await $.clock.now()
       const w = await change($, x)
       file = w.file
+      if (file && isText(file) && w.created) name = judgeName(file, now, limits)
       if (file && isText(file) && w.after) {
         // Bare times in a file named for a later day are a plan for that day, not stamps.
         const day = dateOfFile(file)
@@ -116,17 +130,25 @@ export const register: Register = (on, options: Options = {}) => {
     } catch {
       // A failure of this mod never stops the call.
       verdicts = []
+      name = undefined
     }
     const key = (v: Verdict) => `${file}\n${v.stamp.line}`
     const future = verdicts.filter(v => v.kind === 'future')
     const fresh = future.filter(v => !((meant.get(key(v)) ?? Infinity) < began))
-    if (fresh.length) {
-      for (const v of fresh) meant.set(key(v), ++order)
-      return { deny: refusal(fresh) }
+    // By the file's name alone, so a retry spelled another way (relative, absolute) is the same file.
+    const nameKey = `(name)\n${file.split(/[/\\]/).pop()}`
+    const freshName = name && !((meant.get(nameKey) ?? Infinity) < began) ? name : undefined
+    if (fresh.length || freshName) {
+      // The first refusal's number is kept: an older call refused late must not move it past a retry.
+      const mark = (k: string) => { const n = ++order; meant.set(k, Math.min(meant.get(k) ?? Infinity, n)) }
+      for (const v of fresh) mark(key(v))
+      if (freshName) mark(nameKey)
+      return { deny: [...(freshName ? [nameRefusal(file, freshName)] : []), ...(fresh.length ? [refusal(fresh)] : [])].join('\n') }
     }
     const done = await next(e)
     if (done.deny !== undefined || done.isError) return done
     const said = [
+      ...(name ? [`date-check: kept the date ${name.date} in the new file's name as written the second time.`] : []),
       ...(future.length ? [`date-check: kept ${future.map(v => `"${v.stamp.text}"`).join(', ')} as written the second time (a date in the future on purpose).`] : []),
       ...(notes && verdicts.some(v => v.kind === 'stale') ? [staleNote(verdicts.filter(v => v.kind === 'stale'))] : []),
     ]

@@ -224,3 +224,16 @@ export const judge = (stamps: Stamp[], now: number, limits: Limits = LIMITS, zon
   }
   return out
 }
+
+/**
+ * The date in a new file's name, when it is more than `staleDays` before today: the agent
+ * named the file for the day it guessed, often one near its training. A later day is a plan
+ * (an agenda for 2026-11-05), not judged. `undefined` when the name carries no date or the
+ * date can be today.
+ */
+export const judgeName = (path: string, now: number, limits: Limits = LIMITS): { date: string; real: string } | undefined => {
+  const date = dateOfFile(path)
+  if (!date) return undefined
+  const v = judge([{ text: date, line: path, where: 'field', date }], now, limits)[0]
+  return v?.kind === 'stale' ? { date, real: v.real } : undefined
+}

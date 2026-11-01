@@ -34,6 +34,11 @@ yet been seen on a screen.
 - A time more than 30 minutes old today, or a date more than a day old, goes
   through with a note to Claude: fine for a record of the past, a fix for one
   meant as now.
+- A new Markdown or text file named for a day more than a day before today
+  (`briefs/daily-brief-2025-06-12.md`, created on 2026-11-01) is refused once
+  with the real date. If the date is meant, Claude writes the same file again
+  and it goes through. Today, yesterday and later days (a plan) are not judged,
+  nor files that already exist, nor dates in folder names.
 - What counts as a stamp: a date in a Markdown heading (`## 0.2.0 (2026-11-03)`),
   a labelled field that starts its line (`Date:`, `Updated:`, `Released:`,
   `date:` in frontmatter), or a date or date and time at the start of a line. A

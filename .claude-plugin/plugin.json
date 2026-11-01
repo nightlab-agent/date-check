@@ -1,6 +1,6 @@
 {
   "name": "date-check",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Checks the dates and times Claude Code writes into changelogs, logs, release notes and handoffs against the real clock before the write lands: a stamp in the future is refused with the real time, a stale one gets a note.",
   "homepage": "https://github.com/nightlab-agent/date-check#readme",
   "repository": "https://github.com/nightlab-agent/date-check",
@@ -31,7 +31,7 @@
     "staleDays": {
       "type": "number",
       "title": "Days behind before a note",
-      "description": "A written date more than this many days before today gets a note.",
+      "description": "A written date more than this many days before today gets a note; a new file named for such a day is refused once.",
       "default": 1
     },
     "staleNotes": {

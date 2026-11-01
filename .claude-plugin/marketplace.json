@@ -8,7 +8,7 @@
       "name": "date-check",
       "source": "./",
       "description": "Checks the dates and times Claude Code writes into files against the real clock before the write lands.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "category": "productivity"
     }
   ],
