@@ -100,8 +100,8 @@ export const staleNote = (vs: Verdict[]) =>
   `date-check: ${vs.map(quote).join('; ')} ${vs.length === 1 ? 'is' : 'are'} older than now (${vs[0]!.real}). ` +
   `If ${vs.length === 1 ? 'it records' : 'they record'} something past, leave ${vs.length === 1 ? 'it' : 'them'}; if ${vs.length === 1 ? 'it was' : 'they were'} meant as now, correct ${vs.length === 1 ? 'it' : 'them'}.`
 
-/** Prompts the person sent: typed, from Remote Control, or the SDK host's own turn. */
-const PERSON = new Set(['composer', 'bridge', 'sdk'])
+/** Prompts the person sent: typed, from Remote Control or Slack, or the SDK host's own turn. */
+const PERSON = new Set(['composer', 'bridge', 'slack-ping', 'sdk'])
 
 export const clockLine = (now: number, since?: number) =>
   `date-check: it is ${clockText(now)}.` +
@@ -121,20 +121,33 @@ export const register: Register = (on, options: Options = {}) => {
   let order = 0
 
   if (options.promptClock !== false) {
-    // The latest moment a person's prompt entered; a clock read that comes back late (two
-    // prompts at once) never moves it back.
-    let lastPerson: number | undefined
+    // The person's prompts in the order they entered, each with its clock reading once it
+    // came back. A prompt measures its gap from the latest earlier one: not from a later one
+    // whose reading came back first (two at once), and not from one dropped beneath.
+    const sent: { at?: number; dropped?: boolean }[] = []
     on('prompt.submit', async ($, e, next) => {
+      const me = PERSON.has(e.origin?.kind) ? { at: undefined as number | undefined, dropped: false } : undefined
+      const earlier = sent.slice()
+      if (me) sent.push(me)
+      if (sent.length > 50) sent.splice(0, sent.length - 50)
       let line: string | undefined
       try {
         const now = await $.clock.now()
-        const person = PERSON.has(e.origin?.kind)
-        line = clockLine(now, person ? lastPerson : undefined)
-        if (person) lastPerson = Math.max(lastPerson ?? now, now)
+        let since: number | undefined
+        if (me) {
+          const before = earlier.filter(x => !x.dropped)
+          // One still waiting for its reading entered with this one: under a minute.
+          since = before.some(x => x.at === undefined) ? now : before.length ? Math.max(...before.map(x => x.at!)) : undefined
+          me.at = now
+        }
+        line = clockLine(now, since)
       } catch {
-        // A failure of this mod never stops the prompt.
+        // A failure of this mod never stops the prompt; a prompt with no reading is no one's previous one.
+        if (me) me.dropped = true
       }
-      return next(line ? { ...e, context: [...(e.context ?? []), line] } : e)
+      const done = await next(line ? { ...e, context: [...(e.context ?? []), line] } : e)
+      if (me && done.drop !== undefined) me.dropped = true
+      return done
     })
   }
 

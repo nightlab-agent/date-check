@@ -170,7 +170,7 @@ const zoneName = (ms: number) => {
   try {
     const iana = Intl.DateTimeFormat().resolvedOptions().timeZone
     const short = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(new Date(ms)).find(p => p.type === 'timeZoneName')?.value
-    return [iana, short && !/^GMT[+-]/.test(short) ? short : ''].filter(Boolean).join(', ')
+    return [...new Set([iana, short && !/^GMT[+-]/.test(short) ? short : ''].filter(Boolean))].join(', ')
   } catch {
     return ''
   }

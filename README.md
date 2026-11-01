@@ -9,7 +9,8 @@ ask for Claude to be told the time
 ([anthropics/claude-code#32913](https://github.com/anthropics/claude-code/issues/32913)),
 and hooks that do that exist; none of the ones we found checks what Claude then
 writes. A mod (a plugin that changes what Claude Code does) can read the real
-clock; this one reads it at the moment Claude writes a stamp.
+clock; this one does both: it tells Claude the time with every prompt, and it
+reads the clock again at the moment Claude writes a stamp.
 
 ![Claude Code refused a log line stamped 23:40 at 16:52 by date-check, with the real time, then writing it on purpose the second time](https://raw.githubusercontent.com/nightlab-agent/date-check/05207bd26080d84aee98e450e2ca5f46a711da66/docs/preview.png)
 
@@ -27,6 +28,21 @@ the time. Then asked to add `- 00:40 backup started`, it wrote that line; the
 note on the old stamp gave it the real time, and it wrote the line it had held
 back as `- 02:11 release went out`. A stamp Claude guesses on its own has not
 yet been seen on a screen.
+
+![With date-check telling Claude the time on each prompt, Claude wrote a log line starting 05:54 at 05:54 without running a command, then named the day, the time zone and how long ago the previous message came](docs/preview-clock.png)
+
+Seen on 2026-11-01 at 05:54 EST, same terminal, with the prompt clock (not
+yet released; it ships in the next version). The same request as above, to
+start a log line with the current time and not run commands: this time Claude
+wrote `05:54 Release went out.` and said the time came from the session
+context. Asked what day and time it was, which zone, and how long ago the
+previous message came, it answered Sunday 1 November, 05:54, America/New_York
+on Eastern Standard Time, under a minute ago.
+
+- Each prompt carries one line Claude reads and you do not see: the local
+  weekday, date, time, UTC offset and zone name, and how long ago your
+  previous message came. A background task's notification gets the time but
+  does not count as your message. The "clock on every prompt" setting turns it off.
 
 - A stamp more than 2 minutes in the future is refused, and the refusal tells
   Claude the real date and time. If the future date is meant (a deadline, a
@@ -86,11 +102,14 @@ year old and offered to rename it to `daily-brief-2026-11-01.md`.
 
 ## What it writes
 
-Nothing. It reads the file a Write or an Edit is about to change, to judge only the new
-lines. Nothing leaves your machine through this mod: it makes no network calls.
+No files. It adds one line beside each prompt for Claude to read (the clock, above), and it
+reads the file a Write or an Edit is about to change, to judge only the new lines. Nothing leaves your machine through this mod: it makes no network calls.
 
 ## How it works
 
+- One hook, `prompt.submit`, which Claude Code runs as each prompt enters: it reads Claude
+  Code's clock and attaches the clock line to the prompt. A failure of the mod lets the
+  prompt through unchanged.
 - One hook, `tool.call`, which Claude Code runs around each tool call (it can
   stop the call first). On Write, Edit and Bash it finds the stamps the call adds, compares
   each with Claude Code's clock, and either refuses the call with the real time
