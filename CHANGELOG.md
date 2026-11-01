@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Tests: a log entry written late, with an earlier time than the line above it, is judged against
+  the clock alone (a note when it is over 30 minutes old), and the newer line is not judged again.
+  No change to the code.
+
 ## 0.1.1 (2026-10-31)
 
 - README: says what each install scope means, and what the one hook is and when Claude Code runs it. No change

@@ -171,3 +171,21 @@ test('a shell line with two echos to one file judges both (seen in a preview: a 
   expect(r.deny).toContain('"18:30"')
   expect(w.ran).toEqual([])
 })
+
+// Out of order: a log line written late, with an earlier time than the line above it. The
+// earlier time is judged against the clock, never against the newer line, and the newer line
+// already in the file is never judged again.
+test('out of order: a late entry (15:20) under a newer one (16:00) gets the stale note only', async ($, on) => {
+  const w = world(on, { '/p/log/2026-10-31.md': '- 16:00 release out\n' })
+  const r = await edit($, '/p/log/2026-10-31.md', '- 16:00 release out\n', '- 16:00 release out\n- 15:20 tests passed\n')
+  expect(r.deny).toBeUndefined()
+  expect(r.context?.join(' ')).toContain('"15:20"')
+  expect(r.context?.join(' ')).not.toContain('"16:00"')
+  expect(w.fs.get('/p/log/2026-10-31.md')).toBe('- 16:00 release out\n- 15:20 tests passed\n')
+})
+test('out of order (comparison): a late entry 15:50, inside the 30 minutes, goes through with nothing said', async ($, on) => {
+  world(on, { '/p/log/2026-10-31.md': '- 16:00 release out\n' })
+  const r = await edit($, '/p/log/2026-10-31.md', '- 16:00 release out\n', '- 16:00 release out\n- 15:50 tests passed\n')
+  expect(r.deny).toBeUndefined()
+  expect(r.context ?? []).toEqual([])
+})
