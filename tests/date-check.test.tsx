@@ -189,3 +189,41 @@ test('out of order (comparison): a late entry 15:50, inside the 30 minutes, goes
   expect(r.deny).toBeUndefined()
   expect(r.context ?? []).toEqual([])
 })
+
+// The night the clocks go back (New York, 2026-11-01: 01:00 to 02:00 happens twice). A zone
+// standing in for New York, so these pass wherever the tests run.
+const newYork = (ms: number) => (ms < Date.UTC(2026, 10, 1, 6) ? -240 : -300)
+const clock0626Z = Date.UTC(2026, 10, 1, 6, 26)
+
+test('real mistake 4: a log line stamped "01:40 EST" written at 01:26 EST is refused (the zone name is read)', async ($, on) => {
+  const w = world(on, {}, clock0626Z)
+  const r = await edit($, '/p/log/2026-11-01.md', '- replies read\n', '- replies read\n- 01:40 EST session end, nothing published\n')
+  expect(r.deny).toContain('"01:40 EST"')
+  expect(r.deny).toMatch(/It is 2026-11-01 \d{2}:\d{2} local time, UTC[+-]\d{2}:\d{2} now/)
+  expect(w.ran).toEqual([])
+})
+
+test('comparison: "01:26 EST" at 01:26 EST goes through with nothing said', async ($, on) => {
+  const w = world(on, {}, clock0626Z)
+  const r = await edit($, '/p/log/2026-11-01.md', 'a\n', 'a\n- 01:26 EST session end\n')
+  expect(r.deny).toBeUndefined()
+  expect(r.context ?? []).toEqual([])
+  expect(w.ran).toEqual(['Edit'])
+})
+
+test('the repeated hour: a bare 01:40 at 01:26 EST can be the 01:40 EDT just gone, so it is neither refused nor called old', () => {
+  expect(judge(stampsIn('- 01:40 end', '2026-11-01'), clock0626Z, undefined, newYork)).toEqual([])
+  expect(judge(stampsIn('- 01:10 end', '2026-11-01'), clock0626Z, undefined, newYork)).toEqual([])
+})
+
+test('comparison: outside the repeated hour the same zone still judges: 00:30 (EDT) is old, 02:00 (EST) is ahead', () => {
+  expect(judge(stampsIn('- 00:30 end', '2026-11-01'), clock0626Z, undefined, newYork).map(v => v.kind)).toEqual(['stale'])
+  expect(judge(stampsIn('- 02:00 end', '2026-11-01'), clock0626Z, undefined, newYork).map(v => v.kind)).toEqual(['future'])
+})
+
+test('look-alikes: a name used for two zones is wrong only under both; a word after a time is not a zone', () => {
+  // CST: 16:00 in Chicago is 22:00Z, in China 08:00Z; at 08:00Z the China reading is now.
+  expect(judge(stampsIn('2026-11-01 16:00 CST built'), Date.UTC(2026, 10, 1, 8), undefined, newYork)).toEqual([])
+  expect(stampsIn('- 01:40 ESTIMATE', '2026-11-01')[0]).not.toHaveProperty('zone')
+  expect(stampsIn('Updated: 2026-11-01 06:26 UTC')[0]).toMatchObject({ text: '2026-11-01 06:26 UTC', zone: 'UTC' })
+})

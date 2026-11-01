@@ -1,10 +1,20 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 (2026-11-01)
 
+- These zone names after a time are now read: UTC, GMT, EST, EDT, CST, CDT, MST, MDT, PST, PDT,
+  CET, CEST, BST, IST (`01:40 EST`, `06:26 UTC`); a time with any other name is taken as local
+  time. A name used in more than one place (`CST`, `IST`, `BST`) is judged by every place it
+  can mean. Before,
+  `01:40 EST` was taken as local time, so a stamp 14 minutes ahead in New York on the night the
+  clocks went back got only a note that it was old, not a refusal.
+- The hour the clocks go back over: a local time in it (01:00 to 02:00 in New York on
+  2026-11-01) can mean two moments, and is now refused only when both are ahead, and noted
+  only when both are old.
+  Before, a line written at the real time in that hour could get a note calling it an hour old.
+- Messages give the real time with its UTC offset (`2026-11-01 01:26 local time, UTC-05:00`).
 - Tests: a log entry written late, with an earlier time than the line above it, is judged against
   the clock alone (a note when it is over 30 minutes old), and the newer line is not judged again.
-  No change to the code.
 
 ## 0.1.1 (2026-10-31)
 

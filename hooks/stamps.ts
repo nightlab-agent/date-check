@@ -19,30 +19,52 @@ export type Stamp = {
   minutes?: number
   /** A UTC offset in minutes when it carries one (`Z` is 0). */
   offset?: number
+  /** A zone name written after the time (`EST`, `UTC`), when it carries one. */
+  zone?: string
 }
 
 export type Verdict = { stamp: Stamp; kind: 'future' | 'stale'; real: string }
 
 const DATE = String.raw`(\d{4})-(\d{2})-(\d{2})`
-const TIME = String.raw`(?:[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s?(Z|[+-]\d{2}:?\d{2})?)?`
+const NAMED = String.raw`(?:(?:UTC|GMT)[+-]\d{1,2}(?::?\d{2})?(?![\d:])|(?:Z|UTC|GMT|CEST|CET|BST|IST|[ECMP][SD]T)(?![A-Za-z\d+-]))`
+const ZONE = String.raw`([+-]\d{2}:?\d{2}|` + NAMED + ')'
+const TIME = String.raw`(?:[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s?` + ZONE + String.raw`?)?`
 const STAMP = DATE + TIME
 const LABEL = String.raw`(?:date|dated|updated|last[ _-]?updated|last[ _-]?modified|modified|released|release[ _-]?date|generated|written|created|as of|timestamp)`
 
 const heading = new RegExp(String.raw`^\s{0,3}#{1,6}\s.*?(?<![\d-])` + STAMP + String.raw`(?![\d-])`)
 const field = new RegExp(String.raw`^\s{0,3}(?:[-*+]\s+|>\s*|\|\s*)?[*_]*` + LABEL + String.raw`\**\s*[:=]\s*\**["'\x60]?(?:on\s)?` + STAMP + String.raw`(?![\d-])`, 'i')
 const opening = new RegExp(String.raw`^\s*(?:[-*+]\s+|>\s*)?[\[(]?` + STAMP + String.raw`(?![\d-])`)
-const timeOpening = /^\s*(?:[-*+]\s+|>\s*)?[\[(]?(\d{2}):(\d{2})(?::\d{2})?(?![\d:])[\])]?(?:\s|$|[,;|-])/
+const timeOpening = new RegExp(String.raw`^\s*(?:[-*+]\s+|>\s*)?[\[(]?(\d{2}):(\d{2})(?::\d{2})?(?![\d:])(?:\s?(` + NAMED + String.raw`))?[\])]?(?:\s|$|[,;|-])`)
+
+/**
+ * The UTC offsets in minutes a zone name can mean. A name used for two zones (CST is
+ * Chicago's winter and China's) has both: a stamp is only called wrong when it is wrong
+ * under every reading.
+ */
+const ZONES: Record<string, number[]> = {
+  UTC: [0], GMT: [0], EST: [-300], EDT: [-240], CST: [-360, 480], CDT: [-300], MST: [-420], MDT: [-360],
+  PST: [-480], PDT: [-420], CET: [60], CEST: [120], BST: [60, 360], IST: [330, 60, 120],
+}
 
 const valid = (y: number, m: number, d: number) => {
   if (m < 1 || m > 12 || d < 1) return false
   return d <= new Date(Date.UTC(y, m, 0)).getUTCDate()
 }
 
-const offsetOf = (z: string | undefined) => {
-  if (z === undefined) return undefined
+/** A UTC offset in minutes (`Z`, `+02:00`, `UTC+2`, `GMT-03:30`); undefined when it is not a real one. */
+const offsetOf = (z: string) => {
   if (z === 'Z') return 0
-  const m = /^([+-])(\d{2}):?(\d{2})$/.exec(z)!
-  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]))
+  const m = /^(?:UTC|GMT)?([+-])(\d{1,2}):?(\d{2})?$/.exec(z)
+  if (!m || Number(m[2]) > 14 || !['00', '15', '30', '45', undefined].includes(m[3])) return undefined
+  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] ?? 0))
+}
+
+/** Daylight time in the United States: the second Sunday of March to the first Sunday of November. */
+const usDaylight = (date: string) => {
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number]
+  const sunday = (month: number, nth: number) => { const first = new Date(Date.UTC(y, month, 1)).getUTCDay(); return 1 + ((7 - first) % 7) + 7 * (nth - 1) }
+  return (m > 3 || (m === 3 && d >= sunday(2, 2))) && (m < 11 || (m === 11 && d < sunday(10, 1)))
 }
 
 const build = (m: RegExpExecArray, at: number, line: string, where: Stamp['where']): Stamp | undefined => {
@@ -53,7 +75,15 @@ const build = (m: RegExpExecArray, at: number, line: string, where: Stamp['where
   if (minutes !== undefined && (Number(hh) > 23 || Number(mm) > 59)) return undefined
   const date = `${m[at]}-${m[at + 1]}-${m[at + 2]}`
   const text = m[0].slice(m[0].indexOf(date)).replace(/[\])"'\x60*]+$/, '').trim()
-  return { text, line: line.trim().slice(0, 120), where, date, ...(minutes !== undefined ? { minutes } : {}), ...(m[at + 5] !== undefined ? { offset: offsetOf(m[at + 5]) } : {}) }
+  return { text, line: line.trim().slice(0, 120), where, date, ...(minutes !== undefined ? { minutes } : {}), ...zoneOf(m[at + 5]) }
+}
+
+const zoneOf = (written: string | undefined) => {
+  if (written === undefined) return {}
+  const z = written.toUpperCase()
+  if (ZONES[z]) return { zone: z }
+  const offset = offsetOf(z)
+  return offset === undefined ? {} : { offset }
 }
 
 /** A `YYYY-MM-DD` date in a file's name (logs/2026-10-31.md), the day its bare line times belong to. */
@@ -72,7 +102,7 @@ const lineStamp = (line: string, fileDate?: string): Stamp | undefined => {
   if ((m = field.exec(line))) return build(m, 1, line, 'field')
   if ((m = opening.exec(line))) return build(m, 1, line, 'line-start')
   if (fileDate && (m = timeOpening.exec(line)) && Number(m[1]) < 24 && Number(m[2]) < 60)
-    return { text: `${m[1]}:${m[2]}`, line: line.trim().slice(0, 120), where: 'line-start', date: fileDate, minutes: Number(m[1]) * 60 + Number(m[2]) }
+    return { text: `${m[1]}:${m[2]}${m[3] ? ` ${m[3]}` : ''}`, line: line.trim().slice(0, 120), where: 'line-start', date: fileDate, minutes: Number(m[1]) * 60 + Number(m[2]), ...zoneOf(m[3]) }
   return undefined
 }
 
@@ -123,18 +153,38 @@ export const dayOf = (ms: number, offset?: number) => {
     ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
     : `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
 }
-/** The local time now as a person writes it: `2026-10-31 16:42`. */
+/**
+ * The local time now as a person writes it, with its offset so that the hour the clocks go back
+ * over is not read twice: `2026-10-31 16:42 local time, UTC-04:00`.
+ */
 export const nowText = (ms: number) => {
   const d = new Date(ms)
-  return `${dayOf(ms)} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const o = -d.getTimezoneOffset()
+  const zone = `UTC${o < 0 ? '-' : '+'}${pad(Math.floor(Math.abs(o) / 60))}:${pad(Math.abs(o) % 60)}`
+  return `${dayOf(ms)} ${pad(d.getHours())}:${pad(d.getMinutes())} local time, ${zone}`
 }
 
-/** The moment a stamp names, in ms: its zone when it carries one, the local zone when not. */
-const momentOf = (s: Stamp) => {
+/** The local zone's UTC offset in minutes at a moment (New York in winter: -300). */
+export type ZoneAt = (ms: number) => number
+const localZone: ZoneAt = ms => -new Date(ms).getTimezoneOffset()
+
+/**
+ * The moments a stamp can name, in ms: one for an offset; one per reading of a zone name; and
+ * for a local time, both when it falls in the hour the clocks go back over (01:30 happens twice
+ * that night in New York), one otherwise.
+ */
+const momentsOf = (s: Stamp, zoneAt: ZoneAt) => {
   const [y, m, d] = s.date.split('-').map(Number) as [number, number, number]
-  const min = s.minutes ?? 0
-  if (s.offset !== undefined) return Date.UTC(y, m - 1, d, 0, min) - s.offset * 60000
-  return new Date(y, m - 1, d, 0, min).getTime()
+  const wall = Date.UTC(y, m - 1, d, 0, s.minutes ?? 0)
+  if (s.offset !== undefined) return [wall - s.offset * 60000]
+  if (s.zone) {
+    // "EST" is often written for Eastern time all year: in summer it can also mean EDT.
+    const loose = /^[ECMP]ST$/.test(s.zone) && usDaylight(s.date) ? [ZONES[s.zone]![0]! + 60] : []
+    return [...ZONES[s.zone]!, ...loose].map(o => wall - o * 60000)
+  }
+  const offsets = [...new Set([zoneAt(wall - 12 * 3600000), zoneAt(wall + 12 * 3600000)])]
+  const fits = offsets.filter(o => zoneAt(wall - o * 60000) === o)
+  return (fits.length ? fits : offsets.slice(0, 1)).map(o => wall - o * 60000)
 }
 
 export type Limits = { aheadMinutes: number; staleMinutes: number; staleDays: number }
@@ -145,8 +195,10 @@ export const LIMITS: Limits = { aheadMinutes: 2, staleMinutes: 30, staleDays: 1 
  * locally and in UTC (a UTC date written in the evening west of Greenwich is not wrong); stale
  * when more than `staleDays` before today. A time is in the future when more than
  * `aheadMinutes` ahead of now; stale when more than `staleMinutes` behind it on the same day.
+ * A time that can mean two moments is judged by both: future only when both are ahead, stale
+ * only when both are behind.
  */
-export const judge = (stamps: Stamp[], now: number, limits: Limits = LIMITS): Verdict[] => {
+export const judge = (stamps: Stamp[], now: number, limits: Limits = LIMITS, zoneAt: ZoneAt = localZone): Verdict[] => {
   const real = nowText(now)
   const today = dayOf(now)
   const todayUtc = dayOf(now, 0)
@@ -162,10 +214,11 @@ export const judge = (stamps: Stamp[], now: number, limits: Limits = LIMITS): Ve
       }
       continue
     }
-    const at = momentOf(s)
-    if (at > now + limits.aheadMinutes * 60000) out.push({ stamp: s, kind: 'future', real })
+    const moments = momentsOf(s, zoneAt)
+    const at = Math.max(...moments)
+    if (Math.min(...moments) > now + limits.aheadMinutes * 60000) out.push({ stamp: s, kind: 'future', real })
     else if (at < now - limits.staleMinutes * 60000) {
-      const days = s.offset === undefined ? s.date === today : dayOf(at) === today
+      const days = s.offset === undefined && !s.zone ? s.date === today : dayOf(at) === today
       if (days || (now - at) / 86400000 > limits.staleDays) out.push({ stamp: s, kind: 'stale', real })
     }
   }

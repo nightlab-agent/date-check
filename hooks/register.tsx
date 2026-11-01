@@ -78,11 +78,11 @@ const quote = (v: Verdict) => `"${v.stamp.text}" (in: ${v.stamp.line})`
 
 export const refusal = (vs: Verdict[]) =>
   `date-check: ${vs.map(quote).join('; ')} ${vs.length === 1 ? 'is' : 'are'} in the future. ` +
-  `It is ${vs[0]!.real} now (local time). Write the real date and time, or leave the stamp out. ` +
+  `It is ${vs[0]!.real} now. Write the real date and time, or leave the stamp out. ` +
   `If a future date is meant (a deadline, a planned release), write the same text again and it goes through.`
 
 export const staleNote = (vs: Verdict[]) =>
-  `date-check: ${vs.map(quote).join('; ')} ${vs.length === 1 ? 'is' : 'are'} older than now (${vs[0]!.real}, local time). ` +
+  `date-check: ${vs.map(quote).join('; ')} ${vs.length === 1 ? 'is' : 'are'} older than now (${vs[0]!.real}). ` +
   `If ${vs.length === 1 ? 'it records' : 'they record'} something past, leave ${vs.length === 1 ? 'it' : 'them'}; if ${vs.length === 1 ? 'it was' : 'they were'} meant as now, correct ${vs.length === 1 ? 'it' : 'them'}.`
 
 export const register: Register = (on, options: Options = {}) => {

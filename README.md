@@ -41,8 +41,14 @@ screen.
   `.text`, `.rst`, `.adoc`, `.asciidoc`, `.org`, `.log`, and `CHANGELOG`, `HISTORY`, `NEWS`, `RELEASES`,
   `NOTES` with no extension). A date in code is data, not a stamp.
 - Dates are found as `YYYY-MM-DD`, with an optional time and zone
-  (`2026-10-31 16:05`, `2026-10-31T20:05Z`). Other formats (`Oct 31, 2026`) are
-  not checked yet.
+  (`2026-10-31 16:05`, `2026-10-31T20:05Z`, `2026-10-31 16:05 EST`); a bare `16:05`
+  or `16:05 EST` counts at the start of a line in a file named for the day
+  (`log/2026-10-31.md`). Other formats (`Oct 31, 2026`) are not checked yet.
+- Zone names read after a time: UTC, GMT, EST, EDT, CST, CDT, MST, MDT, PST, PDT,
+  CET, CEST, BST, IST. A time with any other name, or none, is your local time.
+  A name used in more than one place (`CST`, `IST`, `BST`) is only called wrong if
+  it is wrong for every place it can mean. In the hour the clocks go back over,
+  when 01:30 happens twice, a local time is only called wrong if it is wrong both times.
 - It checks Write, Edit, and shell commands where `echo` or `printf` writes to
   a file with `>>`, `>` or `| tee`, or `cat` or `tee` writes a heredoc to one.
 
