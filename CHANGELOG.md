@@ -10,10 +10,10 @@
   "clock on every prompt" setting turns it off. Before, Claude Code gave Claude the date only,
   with no time and no zone.
 - Claude can leave the time to the clock: `⟦NOW⟧` (date and time), `⟦DATE⟧`, `⟦TIME⟧` or
-  `⟦NOW-ISO⟧` in what it writes (a Write and its file name, an Edit, a shell command) is replaced with the
+  `⟦NOW-ISO⟧` in what it writes (a Write or an Edit and its file name, a shell command) is replaced with the
   machine's local time as the call lands, and Claude is told what went in. One inside
-  backticks or a code block is kept as written. The prompt clock tells Claude about ⟦NOW⟧, ⟦DATE⟧
-  and ⟦TIME⟧; the "fill placeholders" setting turns them off. The names follow a request in
+  backticks or a code block is kept as written. The prompt clock tells Claude about `⟦NOW⟧`, `⟦DATE⟧`
+  and `⟦TIME⟧`; the "fill placeholders" setting turns them off. The names follow a request in
   MikalaiKryvusha/KAIF#170, which found that a clock in the prompt still left an agent writing
   the minute after.
 

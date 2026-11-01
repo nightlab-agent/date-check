@@ -110,3 +110,14 @@ test('clockText names the weekday on both sides of the clocks going back', () =>
   expect(clockText(new Date(2026, 10, 1, 1, 30).getTime())).toMatch(/^Sunday 2026-11-01 01:30 local time, UTC[+-]\d\d:\d\d/)
   expect(clockText(new Date(2026, 9, 31, 23, 59).getTime())).toMatch(/^Saturday 2026-10-31 23:59/)
 })
+
+test('look-alikes: another plugin\'s prompt between two of the person\'s gets the time and leaves the gap alone', async ($, on) => {
+  const c = world(on)
+  await submit($, 'run the tests in the background')
+  await c.set(NOW + 50 * MIN)
+  const p = clockOf(await submit($, 'review the diff', 'plugin'))[0]
+  expect(p).toContain('06:48 local time')
+  expect(p).not.toContain('previous message')
+  await c.set(NOW + 55 * MIN)
+  expect(clockOf(await submit($, 'what failed?'))[0]).toContain('came 55 min ago')
+})
