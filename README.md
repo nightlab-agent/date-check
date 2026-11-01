@@ -76,6 +76,14 @@ the night New York's clocks went back. Asked to add the line
 its offset, and Claude asked whether the deploy had finished at 01:58 EDT, an
 hour earlier.
 
+![Claude Code's write of briefs/daily-brief-2025-06-12.md refused by date-check with the real date; Claude wrote it again because the name was given, then said the date was likely wrong and offered today's name](https://raw.githubusercontent.com/nightlab-agent/date-check/e008e44b11e50b3115766b19c489e199b7f94ed1/docs/preview-name.png)
+
+Seen in the same terminal on 2026-11-01 at 02:23 EST. Asked to create today's
+brief as `briefs/daily-brief-2025-06-12.md`, Claude's first write was refused
+with the real date. Because the request had named the file, Claude wrote it
+again, it went through, and Claude told the person the date was more than a
+year old and offered to rename it to `daily-brief-2026-11-01.md`.
+
 ## What it writes
 
 Nothing. It reads the file a Write or an Edit is about to change, to judge only the new
