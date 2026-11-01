@@ -1,5 +1,5 @@
 import type { EngineInterface, Register } from 'claude-code'
-import { clockText, dateOfFile, dayOf, gapText, judge, judgeName, LIMITS, newStamps } from './stamps'
+import { clockText, dateOfFile, dayOf, fillNow, gapText, judge, judgeName, LIMITS, newStamps } from './stamps'
 import type { Limits, Verdict } from './stamps'
 
 // date-check, the hooks module. Before a Write, an Edit, or a shell command that appends to
@@ -16,8 +16,10 @@ import type { Limits, Verdict } from './stamps'
 // And before the agent writes anything: each prompt carries the clock (promptClock), the local
 // weekday, date, time and zone, and how long ago the person's previous message came, so the
 // agent has the real time instead of a guess.
+// And so the agent need not type a time at all: ⟦NOW⟧, ⟦DATE⟧, ⟦TIME⟧ and ⟦NOW-ISO⟧ in what a
+// call writes are filled from the clock as it lands (fill; fillNow says which spellings).
 
-type Options = { aheadMinutes?: unknown; staleMinutes?: unknown; staleDays?: unknown; staleNotes?: unknown; promptClock?: unknown }
+type Options = { aheadMinutes?: unknown; staleMinutes?: unknown; staleDays?: unknown; staleNotes?: unknown; promptClock?: unknown; fill?: unknown }
 type Call = { tool: string; file_path?: string; content?: string; old_string?: string; new_string?: string; replace_all?: boolean; command?: string }
 
 const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : d)
@@ -103,9 +105,19 @@ export const staleNote = (vs: Verdict[]) =>
 /** Prompts the person sent: typed, from Remote Control or Slack, or the SDK host's own turn. */
 const PERSON = new Set(['composer', 'bridge', 'slack-ping', 'sdk'])
 
-export const clockLine = (now: number, since?: number) =>
+export const clockLine = (now: number, since?: number, fill = true) =>
   `date-check: it is ${clockText(now)}.` +
-  (since === undefined ? '' : ` The person's previous message came ${gapText(now - since)} ago.`)
+  (since === undefined ? '' : ` The person's previous message came ${gapText(now - since)} ago.`) +
+  (fill ? ' To record the moment a file is written, write ⟦NOW⟧ (date and time), ⟦DATE⟧ or ⟦TIME⟧: the clock fills it in as the write lands.' : '')
+
+/** The call with its placeholders filled from the clock, and which ones were. */
+const filledCall = (x: Call, now: number): { call: Call; filled: string[] } => {
+  const key = x.tool === 'Write' ? 'content' : x.tool === 'Edit' ? 'new_string' : 'command'
+  const v = x[key]
+  if (typeof v !== 'string' || !v.includes('⟦')) return { call: x, filled: [] }
+  const f = fillNow(v, now)
+  return f.filled.length ? { call: { ...x, [key]: f.text }, filled: f.filled } : { call: x, filled: [] }
+}
 
 export const register: Register = (on, options: Options = {}) => {
   const limits: Limits = {
@@ -114,6 +126,7 @@ export const register: Register = (on, options: Options = {}) => {
     staleDays: num(options.staleDays, LIMITS.staleDays),
   }
   const notes = options.staleNotes !== false
+  const fill = options.fill !== false
   // A future stamp refused once, by file and line: written again after that refusal, it is
   // meant. Each refusal and each call's start take a number in order, so a call that began
   // before the refusal (two calls at once) is refused too.
@@ -140,7 +153,7 @@ export const register: Register = (on, options: Options = {}) => {
           since = before.some(x => x.at === undefined) ? now : before.length ? Math.max(...before.map(x => x.at!)) : undefined
           me.at = now
         }
-        line = clockLine(now, since)
+        line = clockLine(now, since, fill)
       } catch {
         // A failure of this mod never stops the prompt; a prompt with no reading is no one's previous one.
         if (me) me.dropped = true
@@ -152,9 +165,20 @@ export const register: Register = (on, options: Options = {}) => {
   }
 
   on('tool.call', async ($, e, next) => {
-    const x = e as unknown as Call
+    let x = e as unknown as Call
     if (x.tool !== 'Write' && x.tool !== 'Edit' && x.tool !== 'Bash') return next(e)
     const began = ++order
+    let filled: string[] = []
+    if (fill) {
+      try {
+        const f = filledCall(x, await $.clock.now())
+        x = f.call
+        filled = f.filled
+      } catch {
+        // No reading: the call goes on as written.
+      }
+    }
+    const sent = (filled.length ? { ...e, ...x } : e) as typeof e
     let verdicts: Verdict[] = []
     let name: ReturnType<typeof judgeName>
     let file = ''
@@ -186,9 +210,10 @@ export const register: Register = (on, options: Options = {}) => {
       if (freshName) mark(nameKey)
       return { deny: [...(freshName ? [nameRefusal(file, freshName)] : []), ...(fresh.length ? [refusal(fresh)] : [])].join('\n') }
     }
-    const done = await next(e)
+    const done = await next(sent)
     if (done.deny !== undefined || done.isError) return done
     const said = [
+      ...(filled.length ? [`date-check: filled from the clock: ${filled.join(', ')}.`] : []),
       ...(name ? [`date-check: kept the date ${name.date} in the new file's name as written the second time.`] : []),
       ...(future.length ? [`date-check: kept ${future.map(v => `"${v.stamp.text}"`).join(', ')} as written the second time (a date in the future on purpose).`] : []),
       ...(notes && verdicts.some(v => v.kind === 'stale') ? [staleNote(verdicts.filter(v => v.kind === 'stale'))] : []),

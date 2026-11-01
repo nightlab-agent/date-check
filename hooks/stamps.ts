@@ -164,6 +164,28 @@ export const nowText = (ms: number) => {
   return `${dayOf(ms)} ${pad(d.getHours())}:${pad(d.getMinutes())} local time, ${zone}`
 }
 
+/**
+ * Placeholders the agent writes instead of typing a time, filled from the clock as the call
+ * lands: `⟦NOW⟧` 2026-11-01 06:20, `⟦DATE⟧` 2026-11-01, `⟦TIME⟧` 06:20, `⟦NOW-ISO⟧`
+ * 2026-11-01T06:20:41-05:00, all local. One inside backticks or a fenced code block is kept
+ * as written (a README that shows the placeholder). Exactly these spellings: `⟦now⟧`, `[NOW]`
+ * and `⟦NOW ⟧` are text.
+ */
+export const fillNow = (text: string, ms: number): { text: string; filled: string[] } => {
+  const d = new Date(ms)
+  const o = -d.getTimezoneOffset()
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const iso = `${dayOf(ms)}T${time}:${pad(d.getSeconds())}${o < 0 ? '-' : '+'}${pad(Math.floor(Math.abs(o) / 60))}:${pad(Math.abs(o) % 60)}`
+  const value: Record<string, string> = { 'NOW-ISO': iso, NOW: `${dayOf(ms)} ${time}`, DATE: dayOf(ms), TIME: time }
+  const filled: string[] = []
+  const out = text.replace(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)|⟦(NOW-ISO|NOW|DATE|TIME)⟧/g, (m, code: string | undefined, tok: string | undefined) => {
+    if (code !== undefined || !tok) return m
+    filled.push(`⟦${tok}⟧ ${value[tok]}`)
+    return value[tok]!
+  })
+  return { text: out, filled: [...new Set(filled)] }
+}
+
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 /** The zone's name where the runtime knows it (`America/New_York, EST`); '' where it does not. */
 const zoneName = (ms: number) => {
