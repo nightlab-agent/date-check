@@ -58,16 +58,20 @@ export const shellWrite = (command: string): { file: string; text: string } | un
   return file === undefined ? undefined : { file, text: texts.join('\n') }
 }
 
-/** A shell command that changes directory first: a relative path in it means no one place. */
-const movesDir = (command: string) => /(?:^|[;&|\n]\s*)(?:cd|pushd)\s/.test(command)
+/** The directory changes in a shell command (`cd a`, `(pushd b`): after one, a relative path means no one place. */
+const dirMoves = (command: string) =>
+  [...command.matchAll(/(?:^|[;&|\n({]\s*)(cd|pushd)\s+([^;&|\n)}]*)/g)].map(m => `${m[1]} ${m[2]!.trim()}`)
+const movesDir = (command: string) => dirMoves(command).length > 0
 
 /** The file as one spelling, for remembering what was refused: a relative path joined to the
  * session's directory, `.` and `..` resolved, one separator, a drive letter's path in lower
- * case. A relative path after a `cd` in the same command, `~` and a failed reading stay as written. */
-async function placed($: EngineInterface, file: string, moved = false): Promise<string> {
+ * case, a network path in lower case. A relative path after a `cd` in the same command is kept
+ * with the `cd`s before it, so it is one file only with the same moves; `~` and a failed reading
+ * stay as written. */
+async function placed($: EngineInterface, file: string, moves: string[] = []): Promise<string> {
   if (!file || file.startsWith('~')) return file
   const absolute = /^(?:[\\/]|[A-Za-z]:[\\/])/.test(file)
-  if (!absolute && moved) return file
+  if (!absolute && moves.length) return `${moves.join('; ')}; ${file}`
   let full = file
   if (!absolute) {
     try {
@@ -83,8 +87,9 @@ async function placed($: EngineInterface, file: string, moved = false): Promise<
     if (part === '..') parts.pop()
     else parts.push(part)
   }
-  const one = `${drive}/${parts.join('/')}`
-  return drive ? one.toLowerCase() : one
+  const network = /^[\\/]{2}/.test(full)
+  const one = `${network ? '//' : drive}/${parts.join('/')}`.replace(/^\/\/\//, '//')
+  return drive || network ? one.toLowerCase() : one
 }
 
 /** What a call changes in which file: the file's text before and after it. */
@@ -235,7 +240,7 @@ export const register: Register = (on, options: Options = {}) => {
       name = undefined
     }
     // Keyed by the line as the agent wrote it, so a retry with the same placeholder a minute later is the same line.
-    const at = await placed($, file, x.tool === 'Bash' && typeof x.command === 'string' && movesDir(x.command))
+    const at = await placed($, file, x.tool === 'Bash' && typeof x.command === 'string' ? dirMoves(x.command) : [])
     const key = (v: Verdict) => `${at}\n${unfill(v.stamp.line, filled)}`
     const future = verdicts.filter(v => v.kind === 'future')
     const fresh = future.filter(v => !((meant.get(key(v)) ?? Infinity) < began))
