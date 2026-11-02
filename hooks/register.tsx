@@ -58,16 +58,33 @@ export const shellWrite = (command: string): { file: string; text: string } | un
   return file === undefined ? undefined : { file, text: texts.join('\n') }
 }
 
-/** The file as one spelling: a relative path joined to the session's directory, so a retry
- * written relative and one written absolute are the same file. `~` and a failed reading stay as written. */
-async function placed($: EngineInterface, file: string): Promise<string> {
-  if (!file || /^(?:[\\/]|[A-Za-z]:[\\/]|~)/.test(file)) return file
-  try {
-    const cwd = await $.session.cwd()
-    return `${cwd.replace(/[\\/]+$/, '')}/${file.replace(/^(?:\.[\\/])+/, '')}`
-  } catch {
-    return file
+/** A shell command that changes directory first: a relative path in it means no one place. */
+const movesDir = (command: string) => /(?:^|[;&|\n]\s*)(?:cd|pushd)\s/.test(command)
+
+/** The file as one spelling, for remembering what was refused: a relative path joined to the
+ * session's directory, `.` and `..` resolved, one separator, a drive letter's path in lower
+ * case. A relative path after a `cd` in the same command, `~` and a failed reading stay as written. */
+async function placed($: EngineInterface, file: string, moved = false): Promise<string> {
+  if (!file || file.startsWith('~')) return file
+  const absolute = /^(?:[\\/]|[A-Za-z]:[\\/])/.test(file)
+  if (!absolute && moved) return file
+  let full = file
+  if (!absolute) {
+    try {
+      full = `${await $.session.cwd()}/${file}`
+    } catch {
+      return file
+    }
   }
+  const drive = /^[A-Za-z]:/.exec(full)?.[0] ?? ''
+  const parts: string[] = []
+  for (const part of full.slice(drive.length).split(/[\\/]+/)) {
+    if (part === '' || part === '.') continue
+    if (part === '..') parts.pop()
+    else parts.push(part)
+  }
+  const one = `${drive}/${parts.join('/')}`
+  return drive ? one.toLowerCase() : one
 }
 
 /** What a call changes in which file: the file's text before and after it. */
@@ -92,7 +109,7 @@ async function change($: EngineInterface, x: Call): Promise<{ file: string; befo
     if (!w) return none
     // Whether the shell's file is new is only known when its path means one place: not under
     // `~` (the engine does not expand it) and not after a `cd` in the same command.
-    const sure = !w.file.startsWith('~') && !/(?:^|[;&|\n]\s*)(?:cd|pushd)\s/.test(x.command)
+    const sure = !w.file.startsWith('~') && !movesDir(x.command)
     return { file: w.file, before: '', after: w.text, created: sure && !(await $.fs.exists(w.file)) }
   }
   return none
@@ -218,7 +235,7 @@ export const register: Register = (on, options: Options = {}) => {
       name = undefined
     }
     // Keyed by the line as the agent wrote it, so a retry with the same placeholder a minute later is the same line.
-    const at = await placed($, file)
+    const at = await placed($, file, x.tool === 'Bash' && typeof x.command === 'string' && movesDir(x.command))
     const key = (v: Verdict) => `${at}\n${unfill(v.stamp.line, filled)}`
     const future = verdicts.filter(v => v.kind === 'future')
     const fresh = future.filter(v => !((meant.get(key(v)) ?? Infinity) < began))
