@@ -222,8 +222,9 @@ export const register: Register = (on, options: Options = {}) => {
     const key = (v: Verdict) => `${at}\n${unfill(v.stamp.line, filled)}`
     const future = verdicts.filter(v => v.kind === 'future')
     const fresh = future.filter(v => !((meant.get(key(v)) ?? Infinity) < began))
-    // By the file's name alone, so a retry spelled another way (relative, absolute) is the same file.
-    const nameKey = `(name)\n${file.split(/[/\\]/).pop()}`
+    // By the placed path, so a retry spelled another way (relative, absolute) is the same file
+    // and a file of the same name in another folder is not.
+    const nameKey = `(name)\n${at}`
     const freshName = name && !((meant.get(nameKey) ?? Infinity) < began) ? name : undefined
     if (fresh.length || freshName) {
       // The first refusal's number is kept: an older call refused late must not move it past a retry.

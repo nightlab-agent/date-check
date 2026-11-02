@@ -14,6 +14,7 @@ const world = (on: On, files: Record<string, string> = {}, slow?: (path: string)
   const fs = new Map(Object.entries(files))
   const ran: string[] = []
   mock.clock(on, { now: NOW })
+  on('session.cwd', () => ({ value: '/p' })) // the project root the shell retries run from
   on('fs.exists', async (_, e) => {
     await slow?.(e.path)
     return { value: fs.has(e.path) }
