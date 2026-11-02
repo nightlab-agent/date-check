@@ -1,7 +1,7 @@
 #!/bin/sh
 # Release check (date-check): the manifest and module validate, the tests pass, the plugin
-# directory checklist (tests/checklist.py, from mod-ready) has no FAIL, and the
-# version string is the same in the plugin manifest, the marketplace manifest,
+# directory checklist (tests/checklist.py, from mod-ready) has no FAIL, the README's
+# Settings line names every setting (tests/readme_settings.py), and the version string is the same in the plugin manifest, the marketplace manifest,
 # the changelog's newest release, and package.json (the README carries no version).
 # Exit non-zero on any of them. Run from the repo root: sh tests/release.sh
 # Type-check: tests/typecheck.sh, tsc --noEmit against the engine's declarations.
@@ -11,6 +11,7 @@ claude plugin validate .
 claude plugin test .
 sh tests/typecheck.sh
 python3 -I tests/checklist.py
+python3 -I tests/readme_settings.py
 python3 -I - <<'PY'
 import json, re, sys
 plugin = json.load(open('.claude-plugin/plugin.json'))['version']

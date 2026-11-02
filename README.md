@@ -33,8 +33,9 @@ Seen on 2026-11-01 at 02:11 EST, same terminal. Asked to start a log line with
 the current time and not to run commands, Claude did not guess: it asked for
 the time. Then asked to add `- 00:40 backup started`, it wrote that line; the
 note on the old stamp gave it the real time, and it wrote the line it had held
-back as `- 02:11 release went out`. A stamp Claude guesses on its own has not
-yet been seen on a screen.
+back as `- 02:11 release went out`. Claude has been seen guessing a time on its
+own (17:23, taken from a folder name, close enough to pass); date-check catching
+a wrong guess Claude made on its own has not yet been seen on a screen.
 
 ![With date-check telling Claude the time on each prompt, Claude wrote a log line starting 05:54 at 05:54 without running a command, then named the day, the time zone and how long ago the previous message came](https://raw.githubusercontent.com/nightlab-agent/date-check/1f80c3f7744ebb8d6edab7dfb767d82b42cb2e5b/docs/preview-clock.png)
 
@@ -101,7 +102,7 @@ was filled in from the clock as the file was written.
 
 Settings (asked when you enable the plugin): minutes ahead allowed (2), minutes
 behind before a note (30), days behind before a note (1), notes on old stamps
-(on).
+(on), the clock on every prompt (on), fill placeholders (on).
 
 ![Claude Code refused a log line stamped 01:58 EST at 01:39 EST by date-check, with the real time and its UTC offset, and Claude asked whether the stamp was meant as EST or EDT](https://raw.githubusercontent.com/nightlab-agent/date-check/003f73177b78ef78659626e8cacbf06d1ab5753d/docs/preview-zone.png)
 
