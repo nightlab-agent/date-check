@@ -112,30 +112,42 @@ const lineStamp = (line: string, fileDate?: string): Stamp | undefined => {
  * code). A stamp whose text was on a line the change removes is carried over, not added.
  */
 export const newStamps = (before: string, after: string, fileDate?: string): Stamp[] => {
+  // A line is the same line only in the same place: inside a code fence or out of one, so a
+  // sample moved out of a fence into the text is a new line.
   const had = new Map<string, number>()
-  for (const l of before.split(/\r?\n/)) had.set(l, (had.get(l) ?? 0) + 1)
-  const out: Stamp[] = []
   let fence = false
-  for (const line of after.split(/\r?\n/)) {
-    const n = had.get(line) ?? 0
-    const isNew = n === 0
-    if (!isNew) had.set(line, n - 1)
-    if (/^\s*(```|~~~)/.test(line)) { fence = !fence; continue }
-    if (fence || !isNew || indentedCode(line)) continue
-    const s = lineStamp(line, fileDate)
-    if (s) out.push(s)
+  for (const l of before.split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(l)) fence = !fence
+    const k = `${fence ? '`' : ' '}${l}`
+    had.set(k, (had.get(k) ?? 0) + 1)
   }
-  // Only a removed line's own stamp carries over: a date named inside a removed sentence
-  // ("planned for 2026-11-05") is not the stamp a new heading writes.
-  const removed: string[] = []
-  for (const [l, n] of had) {
-    const s = n > 0 ? lineStamp(l, fileDate) : undefined
-    for (let i = 0; s && i < n; i++) removed.push(s.text)
+  const out: Stamp[] = []
+  const kept: string[] = []
+  fence = false
+  for (const line of after.split(/\r?\n/)) {
+    const isFence = /^\s*(```|~~~)/.test(line)
+    if (isFence) fence = !fence
+    const k = `${fence ? '`' : ' '}${line}`
+    const n = had.get(k) ?? 0
+    const isNew = n === 0
+    if (!isNew) had.set(k, n - 1)
+    if (isFence) continue
+    if (fence || indentedCode(line)) continue
+    const s = lineStamp(line, fileDate)
+    if (s) (isNew ? out.push(s) : kept.push(s.text))
+  }
+  // Only a stamp the old text itself had carries over, read in the old text's own context (a
+  // date named in a removed sentence or code block is not one): the old text's stamps less those
+  // still on its unchanged lines.
+  const carried = new Map<string, number>()
+  if (before) {
+    for (const s of newStamps('', before, fileDate)) carried.set(s.text, (carried.get(s.text) ?? 0) + 1)
+    for (const s of kept) carried.set(s, (carried.get(s) ?? 0) - 1)
   }
   return out.filter(s => {
-    const i = removed.indexOf(s.text)
-    if (i < 0) return true
-    removed.splice(i, 1)
+    const n = carried.get(s.text) ?? 0
+    if (n <= 0) return true
+    carried.set(s.text, n - 1)
     return false
   })
 }

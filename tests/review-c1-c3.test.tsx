@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 
-// Critic pass 2026-11-02 (code-reviewer). Same in-memory world as tests/date-check.test.tsx.
+// Bugs found in a review of 0.1.4. Same in-memory world as tests/date-check.test.tsx.
 type On = Parameters<TestBody>[1]
 type $T = Parameters<TestBody>[0]
 const NOW = new Date(2026, 10, 2, 10, 0).getTime() // 2026-11-02 10:00 local
