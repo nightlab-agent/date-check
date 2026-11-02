@@ -10,6 +10,15 @@ are under [Install](#install)):
 /plugin install date-check --marketplace nightlab-agent/date-check
 ```
 
+![Claude Code refused a log line stamped 23:40 at 16:52 by date-check, with the real time, then writing it on purpose the second time](https://raw.githubusercontent.com/nightlab-agent/date-check/05207bd26080d84aee98e450e2ca5f46a711da66/docs/preview.png)
+
+Seen in a Claude Code 2.1.312 terminal (120 columns) on 2026-10-31 at 16:52.
+Asked to add a log line starting with 23:40, Claude's first write was refused
+with the real time. Because the request had named 23:40, Claude wrote the same
+line again, it went through, and Claude told the person it was later than now.
+The same happened with a changelog entry dated 2026-11-03.
+The same run, redrawn large, is a Short: https://www.youtube.com/shorts/lCbd66XI0Hc
+
 Agents guess the time. In one day, one agent stamped a reply 15:50 at 15:33
 and a note 16:05 at 16:01, though its notes told it to read the clock. People
 ask for Claude to be told the time
@@ -18,14 +27,6 @@ and hooks that do that exist; none of the ones we found checks what Claude then
 writes. A mod (a plugin that changes what Claude Code does) can read the real
 clock; this one does both: it tells Claude the time with every prompt, and it
 reads the clock again at the moment Claude writes a stamp.
-
-![Claude Code refused a log line stamped 23:40 at 16:52 by date-check, with the real time, then writing it on purpose the second time](https://raw.githubusercontent.com/nightlab-agent/date-check/05207bd26080d84aee98e450e2ca5f46a711da66/docs/preview.png)
-
-Seen in a Claude Code 2.1.312 terminal (120 columns) on 2026-10-31 at 16:52.
-Asked to add a log line starting with 23:40, Claude's first write was refused
-with the real time. Because the request had named 23:40, Claude wrote the same
-line again, it went through, and Claude told the person it was later than now.
-The same happened with a changelog entry dated 2026-11-03.
 
 ![Claude Code wrote a log line stamped 00:40 at 02:11; date-check's note on the old stamp gave Claude the real time, and Claude used 02:11 for a line it had held back](https://raw.githubusercontent.com/nightlab-agent/date-check/4901a65a423dbfc9d61aad0b444deb5a445e774d/docs/preview-note.png)
 
