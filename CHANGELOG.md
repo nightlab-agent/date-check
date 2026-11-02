@@ -14,7 +14,8 @@
   matched by the path as typed, so the relative spelling was refused a second time. Both
   checks now join a relative path to the session's directory and resolve `.` and `..`; on
   Windows, `E:\p\notes.md` and a relative `notes.md` from `E:\p` are one file. A relative
-  path after a `cd` in the same command is not taken for the file the `cd` left.
+  path after a `cd` in the same command (in parentheses too) is the same file only after the
+  same `cd`. Network paths (`\\srv\share`) match in any letter case, as drive paths do.
 - A date moved out of a code block into the text is judged. Before, the line counted as one
   the file already had, so a sample heading in a fence turned into a real heading dated in
   the future went through.
