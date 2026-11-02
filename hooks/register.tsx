@@ -58,6 +58,18 @@ export const shellWrite = (command: string): { file: string; text: string } | un
   return file === undefined ? undefined : { file, text: texts.join('\n') }
 }
 
+/** The file as one spelling: a relative path joined to the session's directory, so a retry
+ * written relative and one written absolute are the same file. `~` and a failed reading stay as written. */
+async function placed($: EngineInterface, file: string): Promise<string> {
+  if (!file || /^(?:[\\/]|[A-Za-z]:[\\/]|~)/.test(file)) return file
+  try {
+    const cwd = await $.session.cwd()
+    return `${cwd.replace(/[\\/]+$/, '')}/${file.replace(/^(?:\.[\\/])+/, '')}`
+  } catch {
+    return file
+  }
+}
+
 /** What a call changes in which file: the file's text before and after it. */
 async function change($: EngineInterface, x: Call): Promise<{ file: string; before: string; after: string; created?: boolean }> {
   const none = { file: '', before: '', after: '' }
@@ -206,7 +218,8 @@ export const register: Register = (on, options: Options = {}) => {
       name = undefined
     }
     // Keyed by the line as the agent wrote it, so a retry with the same placeholder a minute later is the same line.
-    const key = (v: Verdict) => `${file}\n${unfill(v.stamp.line, filled)}`
+    const at = await placed($, file)
+    const key = (v: Verdict) => `${at}\n${unfill(v.stamp.line, filled)}`
     const future = verdicts.filter(v => v.kind === 'future')
     const fresh = future.filter(v => !((meant.get(key(v)) ?? Infinity) < began))
     // By the file's name alone, so a retry spelled another way (relative, absolute) is the same file.
