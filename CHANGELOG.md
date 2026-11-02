@@ -12,7 +12,12 @@
 - A future stamp refused in a Write and written again by the shell with a relative path
   (`echo ... >> notes.md`) now goes through as the refusal promises. Before, the retry was
   matched by the path as typed, so the relative spelling was refused a second time. Both
-  checks now join a relative path to the session's directory.
+  checks now join a relative path to the session's directory and resolve `.` and `..`; on
+  Windows, `E:\p\notes.md` and a relative `notes.md` from `E:\p` are one file. A relative
+  path after a `cd` in the same command is not taken for the file the `cd` left.
+- A date moved out of a code block into the text is judged. Before, the line counted as one
+  the file already had, so a sample heading in a fence turned into a real heading dated in
+  the future went through.
 
 ## 0.1.4 (2026-11-02)
 
