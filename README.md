@@ -3,6 +3,13 @@
 A Claude Code mod that checks the dates and times Claude writes into your files
 against the real clock, before the write lands.
 
+Install with one line at the Claude Code prompt (scopes, the shell form and npm
+are under [Install](#install)):
+
+```
+/plugin install date-check --marketplace nightlab-agent/date-check
+```
+
 Agents guess the time. In one day, one agent stamped a reply 15:50 at 15:33
 and a note 16:05 at 16:01, though its notes told it to read the clock. People
 ask for Claude to be told the time
