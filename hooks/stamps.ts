@@ -125,8 +125,19 @@ export const newStamps = (before: string, after: string, fileDate?: string): Sta
     const s = lineStamp(line, fileDate)
     if (s) out.push(s)
   }
-  const removed = [...had.entries()].filter(([, n]) => n > 0).map(([l]) => l).join('\n')
-  return out.filter(s => !removed.includes(s.text))
+  // Only a removed line's own stamp carries over: a date named inside a removed sentence
+  // ("planned for 2026-11-05") is not the stamp a new heading writes.
+  const removed: string[] = []
+  for (const [l, n] of had) {
+    const s = n > 0 ? lineStamp(l, fileDate) : undefined
+    for (let i = 0; s && i < n; i++) removed.push(s.text)
+  }
+  return out.filter(s => {
+    const i = removed.indexOf(s.text)
+    if (i < 0) return true
+    removed.splice(i, 1)
+    return false
+  })
 }
 
 /** The stamps in some lines of text. */
