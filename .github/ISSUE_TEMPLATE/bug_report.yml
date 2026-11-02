@@ -1,0 +1,42 @@
+name: Bug report
+description: date-check refused a write it should have let through, or let a wrong date or time through.
+labels: [bug]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What happened
+      options:
+        - It refused a write that was right
+        - It let a wrong date or time through
+        - Something else (the prompt clock, a placeholder, a note)
+    validations:
+      required: true
+  - type: textarea
+    id: written
+    attributes:
+      label: The line that was written
+      description: The line with the date or time, as Claude wrote it, and the file it went to (Write, Edit or a shell command).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: said
+    attributes:
+      label: What date-check said
+      description: The refusal or note Claude got, if any. Empty if it said nothing.
+      render: text
+  - type: input
+    id: clock
+    attributes:
+      label: Your local time and zone when it happened
+      placeholder: 2026-11-02 09:14, America/New_York
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Output of `claude --version`, the date-check version, and your OS.
+    validations:
+      required: true

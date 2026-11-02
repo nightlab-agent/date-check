@@ -10,4 +10,5 @@
 | `hooks/register.tsx` | The hooks module. |
 | `tests/*.test.tsx` | The tests (`date-check.test.tsx` holds the three real mistakes; `review*.test.tsx` and `*-review.test.tsx` each hold a reported bug as a case that failed before the fix, beside a comparison case). |
 | `tests/release.sh` | The release check. |
+| `.github/ISSUE_TEMPLATE/` | The bug report form: the line written, what date-check said, the local time and zone, the versions. |
 | `preview/project/` | The sample project the screen preview opens. |
