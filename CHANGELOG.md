@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.5 (2026-11-02)
+
+- A future date written as a release heading is refused even when the line the edit removes
+  named that date in a sentence ("Release planned for 2026-11-05" edited into
+  "## [1.0.0] - 2026-11-05"). Before, any new stamp whose text appeared anywhere in a removed
+  line was taken as carried over; now only a removed line's own stamp is.
+- A new file named for a past day is refused in each folder. Before, the "write it again"
+  memory was kept by the file name alone, so a refusal for `log/2025-06-12.md` let a
+  different new `journal/2025-06-12.md` through unasked.
+- A future stamp refused in a Write and written again by the shell with a relative path
+  (`echo ... >> notes.md`) now goes through as the refusal promises. Before, the retry was
+  matched by the path as typed, so the relative spelling was refused a second time. Both
+  checks now join a relative path to the session's directory.
+
 ## 0.1.4 (2026-11-02)
 
 - Every prompt now carries the clock, so Claude knows the time instead of guessing it: the
