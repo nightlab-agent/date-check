@@ -106,28 +106,42 @@ const lineStamp = (line: string, fileDate?: string): Stamp | undefined => {
   return undefined
 }
 
+/** For each line, whether it sits in a code fence that is closed (a fence left open to the end is not counted). */
+const closedFences = (lines: string[]): boolean[] => {
+  const inside: boolean[] = []
+  let open = -1
+  for (const [i, l] of lines.entries()) {
+    if (/^\s*(```|~~~)/.test(l)) open = open < 0 ? i : -1
+    inside.push(open >= 0 || (/^\s*(```|~~~)/.test(l) && open < 0))
+  }
+  if (open >= 0) for (let i = open; i < lines.length; i++) inside[i] = false
+  return inside
+}
+
 /**
  * The stamps a change adds: the stamps on lines of `after` that `before` did not have, read
  * in the whole of `after` (so a line inside a code block the file already had is seen as
  * code). A stamp whose text was on a line the change removes is carried over, not added.
  */
 export const newStamps = (before: string, after: string, fileDate?: string): Stamp[] => {
-  // A line is the same line only in the same place: inside a code fence or out of one, so a
-  // sample moved out of a fence into the text is a new line.
+  // A line is the same line only in the same place: inside a closed code fence or out of one,
+  // so a sample moved out of a fence into the text is a new line, and closing a fence left open
+  // does not make every line under it new.
   const had = new Map<string, number>()
-  let fence = false
-  for (const l of before.split(/\r?\n/)) {
-    if (/^\s*(```|~~~)/.test(l)) fence = !fence
-    const k = `${fence ? '`' : ' '}${l}`
+  const beforeIn = closedFences(before.split(/\r?\n/))
+  before.split(/\r?\n/).forEach((l, i) => {
+    const k = `${beforeIn[i] ? '`' : ' '}${l}`
     had.set(k, (had.get(k) ?? 0) + 1)
-  }
+  })
   const out: Stamp[] = []
   const kept: string[] = []
-  fence = false
-  for (const line of after.split(/\r?\n/)) {
+  const lines = after.split(/\r?\n/)
+  const afterIn = closedFences(lines)
+  let fence = false
+  for (const [i, line] of lines.entries()) {
     const isFence = /^\s*(```|~~~)/.test(line)
     if (isFence) fence = !fence
-    const k = `${fence ? '`' : ' '}${line}`
+    const k = `${afterIn[i] ? '`' : ' '}${line}`
     const n = had.get(k) ?? 0
     const isNew = n === 0
     if (!isNew) had.set(k, n - 1)
