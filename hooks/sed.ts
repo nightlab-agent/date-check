@@ -346,14 +346,17 @@ const sedWords = (words: Word[]): { words: Word[]; piped: boolean } | undefined 
 
 /**
  * A `sed -i` in one part of a command (any command of a pipeline): its scripts, whether they are
- * extended, every file it names, and `piped` when xargs runs it (then more files come from the pipe).
+ * extended, every file it names, and `piped` when xargs runs it (then more files come from the pipe,
+ * and `source` is the words of the commands before it in the pipeline).
  */
-export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: boolean; files: string[]; piped: boolean } | undefined => {
+export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: boolean; files: string[]; piped: boolean; source: string[] } | undefined => {
   const all = shellWords(part)
   let found: ReturnType<typeof sedWords>
+  let from = 0
   for (let start = 0; !found && start <= all.length; ) {
     const end = all.findIndex((w, k) => k >= start && w.pipe)
     found = sedWords(all.slice(start, end < 0 ? undefined : end))
+    from = start
     if (end < 0) break
     start = end + 1
   }
@@ -395,5 +398,7 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: 
   if (!inPlace) return undefined
   if (!scripts.length && rest.length) scripts.push(rest.shift()!)
   const files = rest.filter(f => f !== '/dev/null')
-  return files.length || found.piped ? { scripts, ere, z, files, piped: found.piped } : undefined
+  // The words of the pipeline before the sed's own command: where xargs gets its file names.
+  const source = all.slice(0, from).filter(w => !w.pipe).map(w => w.text)
+  return files.length || found.piped ? { scripts, ere, z, files, piped: found.piped, source } : undefined
 }

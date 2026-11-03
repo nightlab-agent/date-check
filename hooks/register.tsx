@@ -59,8 +59,9 @@ export const shellWrites = (command: string): ShellWrite[] => {
     if (sed) {
       const text = sed.scripts.flatMap(sedCommands).map(writtenText).filter((t): t is string => t !== undefined).join('\n')
       if (text) for (const file of sed.files) out.push({ file, text, sed: { scripts: sed.scripts, ere: sed.ere, z: sed.z } })
-      // Run by xargs: the files come from the pipe, so the text it writes is judged alone.
-      if (text && sed.piped) out.push({ file: PIPED, text })
+      // Run by xargs: the files come from the pipe, so the text it writes is judged alone, when the
+      // pipe's source names text files (`grep -l TBD log.md`, `git ls-files '*.md'`); code is not judged.
+      if (text && sed.piped && sed.source.some(isText)) out.push({ file: PIPED, text })
       continue
     }
     if (!/^\s*(?:echo|printf)\b/.test(part)) continue
