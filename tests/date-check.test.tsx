@@ -14,9 +14,11 @@ const world = (on: On, files: Record<string, string> = {}, now = NOW) => {
   const fs = new Map(Object.entries(files))
   const ran: string[] = []
   mock.clock(on, { now })
-  on('fs.exists', (_, e) => ({ value: fs.has(e.path) }))
+  // The engine passes `<cwd>/name` for a relative name (seen 2026-11-02); files here are named bare.
+  const at = (p: string) => (fs.has(p) ? p : p.split(/[/\\]/).pop()!)
+  on('fs.exists', (_, e) => ({ value: fs.has(at(e.path)) }))
   on('fs.read', (_, e) => {
-    const t = fs.get(e.path)
+    const t = fs.get(at(e.path))
     if (t === undefined) throw new Error('ENOENT')
     return { value: t }
   })

@@ -130,51 +130,44 @@ async function placed($: EngineInterface, file: string, moves: string[] = []): P
   return drive || network ? one.toLowerCase() : one
 }
 
-/** What a call changes in which file: the file's text before and after it. */
-async function change($: EngineInterface, x: Call): Promise<{ file: string; before: string; after: string; created?: boolean }> {
-  const none = { file: '', before: '', after: '' }
+type Change = { file: string; before: string; after: string; created?: boolean }
+
+/** What a call changes, file by file: each file's text before and after it (a shell command may write several). */
+async function changes($: EngineInterface, x: Call): Promise<Change[]> {
   if (x.tool === 'Write' && typeof x.content === 'string' && x.file_path) {
     const exists = await $.fs.exists(x.file_path)
     const before = exists ? await $.fs.read(x.file_path) : ''
-    return { file: x.file_path, before, after: x.content, created: !exists }
+    return [{ file: x.file_path, before, after: x.content, created: !exists }]
   }
   if (x.tool === 'Edit' && typeof x.new_string === 'string' && typeof x.old_string === 'string' && x.file_path) {
     const before = (await $.fs.exists(x.file_path)) ? await $.fs.read(x.file_path) : ''
     // The whole file after the edit, so a date inside a sentence or a code block reads as one.
     if (x.old_string && before.includes(x.old_string)) {
       const after = x.replace_all ? before.split(x.old_string).join(x.new_string) : before.replace(x.old_string, () => x.new_string!)
-      return { file: x.file_path, before, after }
+      return [{ file: x.file_path, before, after }]
     }
-    return { file: x.file_path, before: x.old_string, after: x.new_string }
+    return [{ file: x.file_path, before: x.old_string, after: x.new_string }]
   }
   if (x.tool === 'Bash' && typeof x.command === 'string') {
-    const ws = pick(shellWrites(x.command))
-    if (!ws) return none
-    const w = { file: ws[0]!.file, text: ws.map(v => v.text).join('\n') }
-    // Whether the shell's file is new is only known when its path means one place: not under
+    const all = shellWrites(x.command)
+    // Whether a shell's file is new is only known when its path means one place: not under
     // `~` (the engine does not expand it) and not after a `cd` in the same command.
-    const sure = !w.file.startsWith('~') && !movesDir(x.command)
-    // A sed -i on files that exist: each file's text after the command (its substitutions, then
-    // what an echo adds), judged as the same Edit is; the first text file it changes is the one judged.
-    if (sure && ws.some(v => v.sed)) {
-      const all = shellWrites(x.command)
-      const files = [...new Set(all.map(v => v.file))].sort((a, b) => Number(isText(b)) - Number(isText(a)))
-      let first: { file: string; before: string; after: string } | undefined
-      let readAll = true
-      for (const file of files) {
-        const r = await applied($, file, all.filter(v => v.file === file))
-        if (!r) {
-          readAll = false
-          break
-        }
-        first ??= r
-        if (r.after !== r.before && isText(file)) return r
-      }
-      if (readAll && first) return first
+    const moved = movesDir(x.command)
+    const out: Change[] = []
+    for (const file of [...new Set(all.map(v => v.file))]) {
+      const sure = !file.startsWith('~') && !moved
+      let ws = all.filter(v => v.file === file)
+      const exists = sure && (await $.fs.exists(file))
+      // sed -i edits only files that exist: on a missing one it writes nothing there (and goes on to the next).
+      if (sure && !exists) ws = ws.filter(v => !v.sed)
+      if (!ws.length) continue
+      // A file that exists: its text after the command (substitutions, then what an echo adds), judged as an Edit is.
+      const r = exists ? await applied($, file, ws) : undefined
+      out.push(r ?? { file, before: '', after: ws.map(v => v.text).join('\n'), created: sure && !exists })
     }
-    return { file: w.file, before: '', after: w.text, created: sure && !(await $.fs.exists(w.file)) }
+    return out
   }
-  return none
+  return []
 }
 
 const quote = (v: Verdict) => `"${v.stamp.text}" (in: ${v.stamp.line})`
@@ -278,45 +271,47 @@ export const register: Register = (on, options: Options = {}) => {
       }
     }
     const sent = (filled.length ? { ...e, ...x } : e) as typeof e
-    let verdicts: Verdict[] = []
-    let name: ReturnType<typeof judgeName>
-    let file = ''
+    // Every file the call writes is judged on its own (a shell command may write several).
+    type Judged = { file: string; at: string; verdicts: Verdict[]; name: ReturnType<typeof judgeName> }
+    let judged: Judged[] = []
     try {
       const now = await $.clock.now()
-      const w = await change($, x)
-      file = w.file
-      if (file && isText(file) && w.created) name = judgeName(file, now, limits)
-      if (file && isText(file) && w.after) {
+      for (const w of await changes($, x)) {
+        if (!w.file || !isText(w.file)) continue
+        const name = w.created ? judgeName(w.file, now, limits) : undefined
         // Bare times in a file named for a later day are a plan for that day, not stamps.
-        const day = dateOfFile(file)
-        verdicts = judge(newStamps(w.before, w.after, day && day <= dayOf(now) ? day : undefined), now, limits)
+        const day = dateOfFile(w.file)
+        const verdicts = w.after ? judge(newStamps(w.before, w.after, day && day <= dayOf(now) ? day : undefined), now, limits) : []
+        judged.push({ file: w.file, at: '', verdicts, name })
       }
     } catch {
       // A failure of this mod never stops the call.
-      verdicts = []
-      name = undefined
+      judged = []
     }
     // Keyed by the line as the agent wrote it, so a retry with the same placeholder a minute later is the same line.
-    const at = await placed($, file, x.tool === 'Bash' && typeof x.command === 'string' ? dirMoves(x.command) : [])
-    const key = (v: Verdict) => `${at}\n${unfill(v.stamp.line, filled)}`
-    const future = verdicts.filter(v => v.kind === 'future')
-    const fresh = future.filter(v => !((meant.get(key(v)) ?? Infinity) < began))
+    const moves = x.tool === 'Bash' && typeof x.command === 'string' ? dirMoves(x.command) : []
+    for (const j of judged) j.at = await placed($, j.file, moves)
+    const key = (j: Judged, v: Verdict) => `${j.at}\n${unfill(v.stamp.line, filled)}`
     // By the placed path, so a retry spelled another way (relative, absolute) is the same file
     // and a file of the same name in another folder is not.
-    const nameKey = `(name)\n${at}`
-    const freshName = name && !((meant.get(nameKey) ?? Infinity) < began) ? name : undefined
-    if (fresh.length || freshName) {
+    const nameKey = (j: Judged) => `(name)\n${j.at}`
+    const verdicts = judged.flatMap(j => j.verdicts)
+    const future = verdicts.filter(v => v.kind === 'future')
+    const fresh = judged.flatMap(j => j.verdicts.filter(v => v.kind === 'future' && !((meant.get(key(j, v)) ?? Infinity) < began)).map(v => ({ j, v })))
+    const named = judged.filter(j => j.name)
+    const freshNames = named.filter(j => !((meant.get(nameKey(j)) ?? Infinity) < began))
+    if (fresh.length || freshNames.length) {
       // The first refusal's number is kept: an older call refused late must not move it past a retry.
       const mark = (k: string) => { const n = ++order; meant.set(k, Math.min(meant.get(k) ?? Infinity, n)) }
-      for (const v of fresh) mark(key(v))
-      if (freshName) mark(nameKey)
-      return { deny: [...(freshName ? [nameRefusal(file, freshName)] : []), ...(fresh.length ? [refusal(fresh)] : [])].join('\n') }
+      for (const f of fresh) mark(key(f.j, f.v))
+      for (const j of freshNames) mark(nameKey(j))
+      return { deny: [...freshNames.map(j => nameRefusal(j.file, j.name!)), ...(fresh.length ? [refusal(fresh.map(f => f.v))] : [])].join('\n') }
     }
     const done = await next(sent)
     if (done.deny !== undefined || done.isError) return done
     const said = [
       ...(filled.length ? [`date-check: filled from the clock: ${filled.join(', ')}.`] : []),
-      ...(name ? [`date-check: kept the date ${name.date} in the new file's name as written the second time.`] : []),
+      ...named.map(j => `date-check: kept the date ${j.name!.date} in the new file's name as written the second time.`),
       ...(future.length ? [`date-check: kept ${future.map(v => `"${v.stamp.text}"`).join(', ')} as written the second time (a date in the future on purpose).`] : []),
       ...(notes && verdicts.some(v => v.kind === 'stale') ? [staleNote(verdicts.filter(v => v.kind === 'stale'))] : []),
     ]
