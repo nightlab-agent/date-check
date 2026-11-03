@@ -82,3 +82,18 @@ test("sed comparison: sed -i $'s/^- TBD/...' of a past time goes through", async
   world(on, { 'log.md': '- TBD\n- other\n' })
   expect((await bash($, `sed -i $'s/^- TBD/- 2026-10-31 15:30/' log.md`)).deny).toBeUndefined()
 })
+
+// sed -i behind timeout, nice, time and nohup.
+test('wrapper comparison: env sed -i is refused', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n' })
+  expect((await bash($, `env sed -i 's/^- TBD/${T}/' log.md`)).deny).toContain('18:30')
+})
+for (const w of ['timeout 5', 'timeout -k 2 5s', 'nice -n 5', 'nice', 'time', 'time -p', 'nohup'])
+  test(`wrapper: ${w} sed -i is refused`, async ($, on) => {
+    world(on, { 'log.md': '- TBD\n' })
+    expect((await bash($, `${w} sed -i 's/^- TBD/${T}/' log.md`)).deny).toContain('18:30')
+  })
+test('wrapper comparison: timeout 5 sed -i of a past time goes through', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n' })
+  expect((await bash($, `timeout 5 sed -i 's/^- TBD/- 2026-10-31 15:30/' log.md`)).deny).toBeUndefined()
+})

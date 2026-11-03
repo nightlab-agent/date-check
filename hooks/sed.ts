@@ -319,12 +319,14 @@ export const shellWords = (part: string): Word[] => {
 }
 
 /** Commands that run the command after them, each with its options that take the next word as a value. */
-const WRAPPERS: Record<string, string> = { env: 'uCS', command: '', sudo: 'ugCDhpUrtT', xargs: 'IiLlnPsdEa' }
+const WRAPPERS: Record<string, string> = {
+  env: 'uCS', command: '', sudo: 'ugCDhpUrtT', xargs: 'IiLlnPsdEa', timeout: 'ks', nice: 'n', time: 'fo', nohup: '',
+}
 const base = (w: Word) => (w.quoted ? '' : w.text.split(/[\\/]/).pop()!.replace(/\.exe$/i, ''))
 
 /**
  * The sed in one command of a pipeline, past `VAR=x` assignments and the wrappers env, command,
- * sudo and xargs (with their options); `/usr/bin/sed` and `gsed` are sed. `piped`: xargs runs it,
+ * sudo, xargs, timeout (and its duration), nice, time and nohup (with their options); `/usr/bin/sed` and `gsed` are sed. `piped`: xargs runs it,
  * so more files, not known here, come from the pipe.
  */
 const sedWords = (words: Word[]): { words: Word[]; piped: boolean } | undefined => {
@@ -348,6 +350,8 @@ const sedWords = (words: Word[]): { words: Word[]; piped: boolean } | undefined 
       // `-u root`: the value is the next word; `-I{}`, `--user=root`: glued.
       if (/^-[a-zA-Z]$/.test(t) && WRAPPERS[name]!.includes(t[1]!)) i++
     }
+    // `timeout 5s sed ...`: the duration comes before the command.
+    if (name === 'timeout' && i < words.length) i++
   }
   const w = words[i]
   return w && /^g?sed$/.test(base(w)) ? { words: words.slice(i), piped } : undefined
