@@ -33,6 +33,45 @@ const TARGET = String.raw`["']?([^\s"';|&<>()]+)`
 const target = (part: string) =>
   (new RegExp(String.raw`(?:^|[^\d<>&])>>?\s*` + TARGET).exec(part) ?? new RegExp(String.raw`\btee\s+(?:-a\s+)?` + TARGET).exec(part))?.[1]
 
+const ADDRESS = String.raw`(?:\d+|\$|\/(?:[^\/\\]|\\.)*\/)`
+
+/** The text one sed script writes: a substitution's replacement, or what `a`, `i` or `c` adds. */
+const sedText = (script: string): string | undefined => {
+  const rest = script.replace(new RegExp(String.raw`^\s*(?:${ADDRESS}(?:\s*,\s*${ADDRESS})?)?\s*`), '')
+  const s = /^s(.)/.exec(rest)
+  if (s) {
+    const d = s[1]!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const m = new RegExp(String.raw`^s${d}(?:[^\\${d}]|\\.)*${d}((?:[^\\${d}]|\\.)*)${d}`).exec(rest)
+    return m ? m[1]!.replace(new RegExp(String.raw`\\(${d})`, 'g'), '$1') : undefined
+  }
+  return /^[aic]\\?\s*([\s\S]*)$/.exec(rest)?.[1]
+}
+
+/** A `sed -i` (or `--in-place`) in one part of a command: the file it edits and the text it writes. */
+const sedWrite = (part: string): { file: string; text: string } | undefined => {
+  const words = [...part.matchAll(/'([^']*)'|"((?:[^"\\]|\\.)*)"|(\|)|([^\s'"|]+)/g)]
+  const end = words.findIndex(w => w[3] !== undefined)
+  const tokens = (end < 0 ? words : words.slice(0, end)).map(w => ({ text: w[1] ?? w[2] ?? w[4] ?? '', quoted: w[4] === undefined }))
+  if (tokens[0]?.text !== 'sed' || tokens[0].quoted) return undefined
+  let inPlace = false
+  const scripts: string[] = []
+  const rest: string[] = []
+  for (let i = 1; i < tokens.length; i++) {
+    const t = tokens[i]!
+    if (!t.quoted && /^(?:-[a-zA-Z]*i|--in-place)/.test(t.text)) {
+      inPlace = true
+      if (t.text === '-i' && tokens[i + 1]?.quoted && tokens[i + 1]!.text === '') i++ // BSD: -i ''
+    } else if (!t.quoted && (t.text === '-e' || t.text === '--expression')) scripts.push(tokens[++i]?.text ?? '')
+    else if (!t.quoted && t.text.startsWith('-')) continue
+    else rest.push(t.text)
+  }
+  if (!inPlace) return undefined
+  if (!scripts.length && rest.length) scripts.push(rest.shift()!)
+  const file = rest.pop()
+  const texts = scripts.map(sedText).filter((t): t is string => t !== undefined)
+  return file && texts.length ? { file, text: texts.join('\n') } : undefined
+}
+
 /**
  * The file a shell command writes text to, and the text: a `cat` or `tee` heredoc whose own
  * line redirects to a file, or an `echo`/`printf` whose own part of the command (between
@@ -48,6 +87,13 @@ export const shellWrite = (command: string): { file: string; text: string } | un
   let file: string | undefined
   const texts: string[] = []
   for (const part of clean.replace(/<<-?\s*['"]?(\w+)['"]?[^\n]*\n[\s\S]*?\n\s*\1\s*$/gm, '').split(/&&|\|\||;|\n/)) {
+    const sed = sedWrite(part)
+    if (sed) {
+      if (sed.file === '/dev/null' || (file !== undefined && sed.file !== file)) continue
+      file = sed.file
+      texts.push(sed.text)
+      continue
+    }
     if (!/^\s*(?:echo|printf)\b/.test(part)) continue
     const to = target(part.replace(/\|\s*tee\b/, ' tee'))
     if (!to || to === '/dev/null' || (file !== undefined && to !== file)) continue

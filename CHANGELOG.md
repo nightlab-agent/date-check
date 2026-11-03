@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- A stamp put into a file with `sed -i` (or `--in-place`, `-i.bak`, BSD's `-i ''`) is judged
+  like one written by `echo >>`: the text of an `s` command's replacement, and of an `a`, `i`
+  or `c` line. Before, `sed -i` was not read at all, so a guessed time put into a log line
+  that way went through unseen. A `sed` that only prints (no `-i`) is left alone.
+
 ## 0.1.5 (2026-11-02)
 
 - A future date written as a release heading is refused even when the line the edit removes

@@ -146,8 +146,36 @@ test('shellWrite reads heredocs, echo and printf, and ignores redirects to /dev/
   expect(shellWrite('git log')).toBeUndefined()
 })
 
+// Seen 2026-11-02: an agent put a guessed time into a record with `sed -i`, which date-check did not read.
+test('shellWrite reads sed -i: the file, and the text a substitution or an append writes', () => {
+  expect(shellWrite("sed -i 's/^- TBD reviewed/- 18:30 reviewed/' log.md")).toEqual({ file: 'log.md', text: '- 18:30 reviewed' })
+  expect(shellWrite("sed -i '$a - 18:30 reviewed the export fix' notes/log.md")).toEqual({ file: 'notes/log.md', text: '- 18:30 reviewed the export fix' })
+  expect(shellWrite('sed -i.bak -e "235s|$| checked 18:30|" log.md')).toEqual({ file: 'log.md', text: ' checked 18:30' })
+  expect(shellWrite("sed -i '' 's/a/b 18:30/g' log.md")?.file).toBe('log.md')
+  expect(shellWrite("sed -i -E 's#x#- 18:30 y#' /p/log.md && tail -1 /p/log.md")?.file).toBe('/p/log.md')
+})
+
+test('shellWrite leaves sed alone when it only prints: no -i, or -n with p', () => {
+  expect(shellWrite("sed 's/a/b 18:30/' log.md")).toBeUndefined()
+  expect(shellWrite("sed -n '1,20p' log.md")).toBeUndefined()
+  expect(shellWrite("grep -n x log.md | sed 's/:/ /'")).toBeUndefined()
+})
+
 test('addedLines keeps a repeated line once per time it is added', () => {
   expect(addedLines('a\nb\n', 'a\nb\nb\n')).toBe('b')
+})
+
+test('a future time put into a log by sed -i is refused, with the real time', async ($, on) => {
+  const w = world(on, { '2026-10-31.md': '- TBD reviewed the export fix\n' })
+  const r = await bash($, "sed -i 's/^- TBD reviewed/- 18:30 reviewed/' 2026-10-31.md")
+  expect(r.deny).toContain('"18:30"')
+  expect(w.ran).toEqual([])
+})
+
+test('comparison: the same sed -i with the real time (16:01) goes through', async ($, on) => {
+  const w = world(on, { '2026-10-31.md': '- TBD reviewed the export fix\n' })
+  expect(await bash($, "sed -i 's/^- TBD reviewed/- 16:01 reviewed/' 2026-10-31.md")).not.toHaveProperty('deny')
+  expect(w.ran).toEqual(['Bash'])
 })
 
 test('only Markdown and text files are judged: a future date in code goes through', async ($, on) => {
