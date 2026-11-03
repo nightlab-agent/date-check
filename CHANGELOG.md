@@ -26,6 +26,8 @@
   began with the word `sed` was read.
 - A heredoc (`cat >> notes.md <<'EOF'`) in a command no longer hides a `sed -i` or an `echo`
   of a future time elsewhere in the same command; before, only the heredoc was read.
+- A command run in the background with a single `&` is read as its own command, so an `echo`
+  of a future time after it is judged. `2>&1`, `>&2`, `&>` and `|&` are not taken for one.
 
 ## 0.1.5 (2026-11-02)
 

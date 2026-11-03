@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import { shellParts } from '../hooks/sed'
 import type { TestBody } from 'claude-code/testing'
 
 // Pre-release code review of 692caf0..361a024 (sed -i). Same world as review-sed3.test.tsx.
@@ -104,4 +105,29 @@ test('CR1: a heredoc into notes.md, then an echo of a future time into log.md, i
 test('CR1 comparison: a heredoc of a future time into log.md, then an echo into notes.md, is refused', async ($, on) => {
   world(on, { 'log.md': '', 'notes.md': '' })
   expect((await bash($, `cat >> log.md <<'EOF'\n- 2026-10-31 18:30 bumped\nEOF\necho hello >> notes.md`)).deny).toContain('18:30')
+})
+
+// CR5: a single & (background) keeps the next command inside the sed part.
+test('CR5: sed -i on notes.md & an echo of a future time into log.md is refused', async ($, on) => {
+  world(on, { 'notes.md': 'foo\n', 'log.md': '' })
+  expect((await bash($, `sed -i 's/foo/bar/' notes.md & echo "- 2026-10-31 18:30 bumped" >> log.md`)).deny).toContain('18:30')
+})
+test('CR5 comparison: the same with && is refused', async ($, on) => {
+  world(on, { 'notes.md': 'foo\n', 'log.md': '' })
+  expect((await bash($, `sed -i 's/foo/bar/' notes.md && echo "- 2026-10-31 18:30 bumped" >> log.md`)).deny).toContain('18:30')
+})
+// CR5 comparisons: an & that is part of a redirect (>&, &>, 2>&1) or of |& does not cut the command.
+test('CR5 comparison: shellParts cuts at a single & only', () => {
+  expect(shellParts('a & b')).toEqual(['a ', ' b'])
+  expect(shellParts('a && b')).toEqual(['a ', ' b'])
+  expect(shellParts('echo x 2>&1 >> log.md')).toEqual(['echo x 2>&1 >> log.md'])
+  expect(shellParts('echo x >&2')).toEqual(['echo x >&2'])
+  expect(shellParts('echo x &> out.log')).toEqual(['echo x &> out.log'])
+  expect(shellParts('echo x &>> out.log')).toEqual(['echo x &>> out.log'])
+  expect(shellParts('echo x |& tee log.md')).toEqual(['echo x |& tee log.md'])
+  expect(shellParts("echo 'a & b' >> log.md")).toEqual(["echo 'a & b' >> log.md"])
+})
+test('CR5 comparison: echo of a future time with 2>&1 into log.md is refused', async ($, on) => {
+  world(on, { 'log.md': '' })
+  expect((await bash($, 'echo "- 2026-10-31 18:30 bumped" 2>&1 >> log.md')).deny).toContain('18:30')
 })

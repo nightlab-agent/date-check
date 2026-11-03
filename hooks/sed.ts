@@ -8,7 +8,7 @@ export type SedCmd =
   | { kind: 'text'; text: string }
   | { kind: 'other'; addr?: string; letter: string }
 
-/** The parts of a shell command between `&&`, `||`, `;` and new lines that sit outside quotes. */
+/** The parts of a shell command between `&&`, `||`, `;`, a single `&` and new lines that sit outside quotes. */
 export const shellParts = (command: string): string[] => {
   const parts: string[] = []
   let cur = ''
@@ -40,7 +40,8 @@ export const shellParts = (command: string): string[] => {
       i++
       continue
     }
-    if (c === ';' || c === '\n') {
+    // A single `&` (run in the background) ends a command too; not the `&` of `>&2`, `2>&1`, `&>`, `&>>` or `|&`.
+    if (c === ';' || c === '\n' || (c === '&' && !/[>|]/.test(command[i - 1] ?? '') && command[i + 1] !== '>')) {
       parts.push(cur)
       cur = ''
       continue
