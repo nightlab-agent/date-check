@@ -34,3 +34,13 @@ test('xargs comparison: git ls-files "*.md" | xargs sed -i of a future time is r
   world(on)
   expect((await bash($, `git ls-files '*.md' | xargs sed -i 's/TODO/2026-10-31 18:30/'`)).deny).toContain('18:30')
 })
+
+// Two heredocs in one command: each is a write.
+test('heredoc comparison: one heredoc of a future time into log.md is refused', async ($, on) => {
+  world(on)
+  expect((await bash($, `cat >> log.md <<'EOF'\n${T} done\nEOF`)).deny).toContain('18:30')
+})
+test('heredoc: a second heredoc (first to notes.md, second to log.md) is refused', async ($, on) => {
+  world(on)
+  expect((await bash($, `cat >> notes.md <<'A'\n- ok\nA\ncat >> log.md <<'B'\n${T} done\nB`)).deny).toContain('18:30')
+})
