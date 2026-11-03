@@ -36,3 +36,22 @@ test('CR3: sed -i s/^-\\ TBD/-\\ 2026-10-31\\ 18:30/ log.md (escaped spaces) is 
   world(on, { 'log.md': '- TBD\n' })
   expect((await bash($, 'sed -i s/^-\\ TBD/-\\ 2026-10-31\\ 18:30/ log.md')).deny).toContain('18:30')
 })
+
+// CR4: JavaScript's . without the u flag is half an emoji; sed's . (UTF-8) is the whole one. No match = no change = passes.
+test('CR4: sed -i with . over an emoji bullet, writing a future time, is refused', async ($, on) => {
+  world(on, { 'log.md': '- 🚀 TBD\n' })
+  expect((await bash($, "sed -i 's/^- . TBD/- 2026-10-31 18:30/' log.md")).deny).toContain('18:30')
+})
+test('CR4 comparison: the same with a * bullet is refused', async ($, on) => {
+  world(on, { 'log.md': '- * TBD\n' })
+  expect((await bash($, "sed -i 's/^- . TBD/- 2026-10-31 18:30/' log.md")).deny).toContain('18:30')
+})
+// CR4 backstop: a pattern the u flag refuses (sed reads a lone ] as a letter) is read without it; on a file with an emoji the written text is judged alone.
+test('CR4: sed -i with . and a lone ] over an emoji bullet, writing a future time, is refused', async ($, on) => {
+  world(on, { 'log.md': '- 🚀 TBD]\n' })
+  expect((await bash($, "sed -i 's/^- . TBD]/- 2026-10-31 18:30/' log.md")).deny).toContain('18:30')
+})
+test('CR4 comparison: the lone ] pattern with a * bullet is refused', async ($, on) => {
+  world(on, { 'log.md': '- * TBD]\n' })
+  expect((await bash($, "sed -i 's/^- . TBD]/- 2026-10-31 18:30/' log.md")).deny).toContain('18:30')
+})

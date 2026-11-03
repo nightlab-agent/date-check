@@ -204,6 +204,18 @@ const toReplacement = (r: string): string => {
 export const applySed = (text: string, scripts: string[], ere: boolean, z = false): string | undefined => {
   if (text === '') return '' // sed reads no line in an empty file and writes nothing
   const steps: { on: (line: string, n: number, last: boolean) => boolean; re: RegExp; rep: string }[] = []
+  // `u`: sed's `.` (UTF-8) takes a whole character, an emoji included; JavaScript's takes half of one
+  // without it. A pattern `u` refuses (a lone `]`, read by sed as a letter) is read without it, and
+  // then a file with such characters is not applied (the written text is judged alone).
+  let loose = false
+  const rx = (src: string, flags: string) => {
+    try {
+      return new RegExp(src, flags + 'u')
+    } catch {
+      loose = true
+      return new RegExp(src, flags)
+    }
+  }
   for (const script of scripts) {
     for (const c of sedCommands(script)) {
       if (c.kind !== 's' || !c.pattern) return undefined
@@ -215,7 +227,7 @@ export const applySed = (text: string, scripts: string[], ere: boolean, z = fals
       let on: (line: string, n: number, last: boolean) => boolean = () => true
       try {
         // `s`: sed's `.` takes a CR (a CRLF file) and, with -z, a new line; JavaScript's takes neither without it.
-        re = new RegExp(src, 's' + (c.flags.includes('g') ? 'g' : '') + (/[Ii]/.test(c.flags) ? 'i' : ''))
+        re = rx(src, 's' + (c.flags.includes('g') ? 'g' : '') + (/[Ii]/.test(c.flags) ? 'i' : ''))
         if (c.addr === '$') on = (_l, _n, last) => last
         else if (c.addr && /^\d+$/.test(c.addr)) {
           const want = Number(c.addr)
@@ -223,7 +235,7 @@ export const applySed = (text: string, scripts: string[], ere: boolean, z = fals
         } else if (c.addr) {
           const a = toRegExpSource(c.addr.slice(1, -1), ere, '/')
           if (a === undefined) return undefined
-          const ar = new RegExp(a)
+          const ar = rx(a, '')
           on = l => ar.test(l)
         }
       } catch {
@@ -233,6 +245,7 @@ export const applySed = (text: string, scripts: string[], ere: boolean, z = fals
     }
   }
   if (!steps.length) return undefined
+  if (loose && /[\uD800-\uDFFF]/.test(text)) return undefined
   const sep = z ? '\0' : '\n'
   const lines = text.split(sep)
   const ends = text.endsWith(sep)

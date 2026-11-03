@@ -17,6 +17,9 @@
 - A sed script quoted in pieces (`s/'^- TBD'/'- 18:30'/`) or with escaped spaces is read as
   the one script the shell passes to sed. Before, only its first piece was read, so the stamp
   went through unseen.
+- A sed pattern's `.` now takes a whole emoji, as sed does, so `s/^- . TBD/…/` on a line
+  `- 🚀 TBD` is judged on the line it really changes. Before, the line looked unchanged and a
+  future time went through.
 
 ## 0.1.5 (2026-11-02)
 
