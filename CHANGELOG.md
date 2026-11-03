@@ -24,6 +24,8 @@
   and the commands that run it (`env`, `command`, `sudo`, `xargs`). After `xargs` the files
   come from the pipe, so the text it writes is judged on its own. Before, only a command that
   began with the word `sed` was read.
+- A heredoc (`cat >> notes.md <<'EOF'`) in a command no longer hides a `sed -i` or an `echo`
+  of a future time elsewhere in the same command; before, only the heredoc was read.
 
 ## 0.1.5 (2026-11-02)
 

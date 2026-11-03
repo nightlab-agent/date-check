@@ -87,3 +87,21 @@ test('CR2 comparison: xargs sed -i writing a past time goes through', async ($, 
   world(on, { 'log.md': '- TBD\n' })
   expect(await bash($, "grep -l TBD log.md | xargs sed -i 's/^- TBD/- 2026-10-31 15:30/'")).not.toHaveProperty('deny')
 })
+
+// CR1: a heredoc anywhere in the command returns early and hides the sed -i.
+test('CR1: sed -i of a future time, then a heredoc into notes.md, is refused', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n', 'notes.md': '' })
+  expect((await bash($, `${SED}\ncat >> notes.md <<'EOF'\nhello\nEOF`)).deny).toContain('18:30')
+})
+test('CR1 comparison: sed -i then an echo into notes.md is refused', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n', 'notes.md': '' })
+  expect((await bash($, `${SED}\necho hello >> notes.md`)).deny).toContain('18:30')
+})
+test('CR1: a heredoc into notes.md, then an echo of a future time into log.md, is refused', async ($, on) => {
+  world(on, { 'log.md': '', 'notes.md': '' })
+  expect((await bash($, `cat >> notes.md <<'EOF'\nhello\nEOF\necho "- 2026-10-31 18:30 bumped" >> log.md`)).deny).toContain('18:30')
+})
+test('CR1 comparison: a heredoc of a future time into log.md, then an echo into notes.md, is refused', async ($, on) => {
+  world(on, { 'log.md': '', 'notes.md': '' })
+  expect((await bash($, `cat >> log.md <<'EOF'\n- 2026-10-31 18:30 bumped\nEOF\necho hello >> notes.md`)).deny).toContain('18:30')
+})
