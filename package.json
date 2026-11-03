@@ -24,6 +24,7 @@
     "hooks/hooks.json",
     "hooks/register.tsx",
     "hooks/sed.ts",
+    "hooks/shell.ts",
     "hooks/stamps.ts",
     "CHANGELOG.md"
   ]

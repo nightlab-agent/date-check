@@ -2,55 +2,14 @@
 // every command of one script, every file it edits, redirects left out. For a file that exists, the
 // `s` commands are applied to its text, so a sed -i is judged on the lines it changes, as an Edit is.
 
+import { shellWords } from './shell'
+import type { Word } from './shell'
+export { shellParts } from './shell'
 /** One sed command: an `s` (pattern, replacement, flags) or the text an `a`, `i` or `c` adds. */
 export type SedCmd =
   | { kind: 's'; addr?: string; delim: string; pattern: string; replacement: string; flags: string }
   | { kind: 'text'; text: string }
   | { kind: 'other'; addr?: string; letter: string }
-
-/** The parts of a shell command between `&&`, `||`, `;`, a single `&` and new lines that sit outside quotes. */
-export const shellParts = (command: string): string[] => {
-  const parts: string[] = []
-  let cur = ''
-  let q: string | undefined
-  for (let i = 0; i < command.length; i++) {
-    const c = command[i]!
-    if (q) {
-      if (c === '\\' && q === '"' && i + 1 < command.length) {
-        cur += c + command[++i]
-        continue
-      }
-      if (c === q) q = undefined
-      cur += c
-      continue
-    }
-    if (c === '\\' && i + 1 < command.length) {
-      cur += c + command[++i]
-      continue
-    }
-    if (c === "'" || c === '"') {
-      q = c
-      cur += c
-      continue
-    }
-    const two = command.slice(i, i + 2)
-    if (two === '&&' || two === '||') {
-      parts.push(cur)
-      cur = ''
-      i++
-      continue
-    }
-    // A single `&` (run in the background) ends a command too; not the `&` of `>&2`, `2>&1`, `&>`, `&>>` or `|&`.
-    if (c === ';' || c === '\n' || (c === '&' && !/[>|]/.test(command[i - 1] ?? '') && command[i + 1] !== '>')) {
-      parts.push(cur)
-      cur = ''
-      continue
-    }
-    cur += c
-  }
-  parts.push(cur)
-  return parts
-}
 
 const ADDRESS = /^\s*(\d+|\$|\/(?:[^/\\]|\\.)*\/)(\s*,\s*(?:\d+|\$|\/(?:[^/\\]|\\.)*\/))?\s*/
 
@@ -255,67 +214,6 @@ export const applySed = (text: string, scripts: string[], ere: boolean, z = fals
     for (const s of steps) if (s.on(lines[i]!, i + 1, i === count - 1)) lines[i] = lines[i]!.replace(s.re, s.rep)
   }
   return lines.join(sep)
-}
-
-type Word = { text: string; quoted: boolean; pipe?: boolean }
-
-/**
- * The words of one part of a command, as the shell reads them: pieces that touch with no space
- * between (`s/'a b'/"c"/`) are one word, quotes removed (`$'...'` with its C escapes read); `\ `
- * outside quotes is a space in the word; a `|` outside quotes is a word of its own (`pipe`). `quoted` says the word began with a quote (then
- * it is never an option or a redirect). Outside quotes a backslash is dropped only before a space, a
- * quote, a backslash or `|;&`, so a Windows path (`E:\p\log.md`) keeps its separators.
- */
-export const shellWords = (part: string): Word[] => {
-  const out: Word[] = []
-  let text: string | undefined
-  let quoted = false
-  const push = () => {
-    if (text !== undefined) out.push({ text, quoted })
-    text = undefined
-  }
-  for (let i = 0; i < part.length; i++) {
-    const c = part[i]!
-    if (c === '|') {
-      push()
-      out.push({ text: '|', quoted: false, pipe: true })
-      continue
-    }
-    if (/\s/.test(c)) {
-      push()
-      continue
-    }
-    if (text === undefined) {
-      text = ''
-      quoted = c === "'" || c === '"' || (c === '$' && part[i + 1] === "'")
-    }
-    if (c === '$' && part[i + 1] === "'") {
-      // `$'...'`: quoted, with C escapes (`\n`, `\t`, `\'`, `\\`); any other backslash stays as written.
-      const esc: Record<string, string> = { n: '\n', t: '\t', r: '\r', "'": "'", '\\': '\\', '"': '"' }
-      for (i += 2; i < part.length && part[i] !== "'"; i++) {
-        if (part[i] === '\\' && i + 1 < part.length) {
-          const n = part[++i]!
-          text += esc[n] ?? `\\${n}`
-        } else text += part[i]
-      }
-    } else if (c === "'") {
-      const end = part.indexOf("'", i + 1)
-      const stop = end < 0 ? part.length : end
-      text += part.slice(i + 1, stop)
-      i = stop
-    } else if (c === '"') {
-      for (i++; i < part.length && part[i] !== '"'; i++) {
-        if (part[i] === '\\' && i + 1 < part.length && '$`"\\\n'.includes(part[i + 1]!)) i++
-        text += part[i]
-      }
-    } else if (c === '\\' && i + 1 < part.length) {
-      const n = part[i + 1]!
-      text += /[\s'"\\|;&]/.test(n) ? n : c + n
-      i++
-    } else text += c
-  }
-  push()
-  return out
 }
 
 /** Commands that run the command after them, each with its options that take the next word as a value. */
