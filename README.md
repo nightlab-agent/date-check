@@ -1,7 +1,8 @@
 # date-check
 
-A Claude Code mod that checks the dates and times Claude writes into your files
-against the real clock, before the write lands.
+A Claude Code mod (a plugin that changes what Claude Code does) that checks the
+dates and times Claude writes into your files against the real clock, before
+the write lands.
 
 Install with one line at the Claude Code prompt (scopes, the shell form and npm
 are under [Install](#install)):
@@ -24,9 +25,9 @@ and a note 16:05 at 16:01, though its notes told it to read the clock. People
 ask for Claude to be told the time
 ([anthropics/claude-code#32913](https://github.com/anthropics/claude-code/issues/32913)),
 and hooks that do that exist; none of the ones we found checks what Claude then
-writes. A mod (a plugin that changes what Claude Code does) can read the real
-clock; this one does both: it tells Claude the time with every prompt, and it
-reads the clock again at the moment Claude writes a stamp.
+writes. A mod can read the real clock; this one does both: it tells Claude the
+time with every prompt, and it reads the clock again at the moment Claude writes
+a stamp.
 
 ![Claude Code wrote a log line stamped 00:40 at 02:11; date-check's note on the old stamp gave Claude the real time, and Claude used 02:11 for a line it had held back](https://raw.githubusercontent.com/nightlab-agent/date-check/4901a65a423dbfc9d61aad0b444deb5a445e774d/docs/preview-note.png)
 
