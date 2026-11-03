@@ -62,9 +62,9 @@ on Eastern Standard Time, under a minute ago.
 
 ![Claude Code writing a log line, "06:14 The release went out.", and saying the time came from the clock](https://raw.githubusercontent.com/nightlab-agent/date-check/f2fc92e73b769c88db998d6d7078a25bbc5c5b70/docs/preview-fill.png)
 
-Seen in a preview on 2026-11-01: asked to start a log line with the exact time
-it is written, Claude wrote `06:14 The release went out.` and said the time
-was filled in from the clock as the file was written.
+Seen in a test session of Claude Code on 2026-11-01: asked to start a log line
+with the exact time it is written, Claude wrote `06:14 The release went out.`
+and said the time was filled in from the clock as the file was written.
 
 - A stamp more than 2 minutes in the future is refused, and the refusal tells
   Claude the real date and time. If the future date is meant (a deadline, a
