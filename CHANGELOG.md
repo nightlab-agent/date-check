@@ -1,7 +1,6 @@
 # Changelog
 
-## Unreleased
-
+## 0.1.6 - 2026-11-03
 - A stamp put into a file with `sed -i` (or `--in-place`, `-i.bak`, BSD's `-i ''`) is judged
   like one written by `echo >>`: the text of an `s` command's replacement, and of an `a`, `i`
   or `c` line. Before, `sed -i` was not read at all, so a guessed time put into a log line
