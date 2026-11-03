@@ -73,7 +73,7 @@ test('F3 comparison: the same two commands as two -e are read', () => {
 
 // F4: several files: only the last is judged, so a code file last hides a log first.
 test('F4: sed -i over a log and a code file judges the log', async ($, on) => {
-  world(on, { 'log.md': '- TBD\n', 'app.ts': 'x\n' }) // sed -i writes nothing to a file that does not exist (s330)
+  world(on, { 'log.md': '- TBD\n', 'app.ts': 'x\n' }) // sed -i writes nothing to a file that does not exist
   expect((await bash($, "sed -i 's/^- TBD/- 2026-10-31 18:30/' log.md app.ts")).deny).toContain('18:30')
 })
 test('F4 comparison: the log alone is refused', async ($, on) => {

@@ -99,10 +99,17 @@ was filled in from the clock as the file was written.
   it is wrong for every place it can mean. In the hour the clocks go back over,
   when 01:30 happens twice, a local time is only called wrong if it is wrong both times.
 - It checks Write, Edit, and shell commands where `echo` or `printf` writes to
-  a file with `>>`, `>` or `| tee`, `cat` or `tee` writes a heredoc to one, or
-  `sed -i` changes one (on a file that exists, the lines its substitution
-  changes, judged as the same Edit would be; otherwise the text it puts in, or a
-  line `a`, `i` or `c` adds).
+  a file with `>>`, `>`, `>|`, `&>>`, `1>` or `| tee` (`2>>` sends only errors,
+  so it is not a write of the text), where `cat` or `tee` writes a heredoc to one
+  (every heredoc in the command, also after `&&` or `;`), or where `sed -i`
+  changes one (on a file that exists, the lines its substitution changes, judged
+  as the same Edit would be; otherwise the text it puts in, or a line `a`, `i` or
+  `c` adds).
+- `sed -i` is found behind settings such as `LC_ALL=C`, a path (`/usr/bin/sed`),
+  `gsed`, and `env`, `command`, `sudo`, `timeout`, `nice`, `time` or `nohup`.
+  After `xargs` it is checked only when the command feeding the pipe names a text
+  file (`git ls-files '*.md' | xargs sed -i …`); `grep -rl TBD . | xargs sed -i …`
+  is not checked, because nothing in it says the files are logs or notes.
 
 Settings (asked when you enable the plugin): minutes ahead allowed (2), minutes
 behind before a note (30), days behind before a note (1), notes on old stamps
@@ -127,7 +134,7 @@ year old and offered to rename it to `daily-brief-2026-11-01.md`.
 ## What it writes
 
 No files. It adds one line beside each prompt for Claude to read (the clock, above), and it
-reads the file a Write or an Edit is about to change, to judge only the new lines. Nothing leaves your machine through this mod: it makes no network calls.
+reads the file a Write, an Edit or a `sed -i` is about to change, to judge only the new lines. Nothing leaves your machine through this mod: it makes no network calls.
 
 ## How it works
 

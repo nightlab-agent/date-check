@@ -21,15 +21,19 @@
   `- 🚀 TBD` is judged on the line it really changes. Before, the line looked unchanged and a
   future time went through.
 - A `sed -i` is found behind `LC_ALL=C` and other settings, a path (`/usr/bin/sed`), `gsed`,
-  and the commands that run it (`env`, `command`, `sudo`, `xargs`). After `xargs` the files
-  come from the pipe, so the text it writes is judged on its own. Before, only a command that
-  began with the word `sed` was read.
+  and the commands that run it (`env`, `command`, `sudo`, `timeout`, `nice`, `time`, `nohup`).
+  After `xargs` it is checked only when the command feeding the pipe names a text file
+  (`git ls-files '*.md'`), so a pipe of code files no longer refuses a date written into code.
+  Before, only a command that began with the word `sed` was read.
 - A heredoc (`cat >> notes.md <<'EOF'`) in a command no longer hides a `sed -i` or an `echo`
   of a future time elsewhere in the same command; before, only the heredoc was read.
 - A command run in the background with a single `&` is read as its own command, so an `echo`
   of a future time after it is judged. `2>&1`, `>&2`, `&>` and `|&` are not taken for one.
 - `echo … &>> log.md` and `echo … 1> log.md` are seen as writes to the file, as `>>` is;
-  `2>> log.md` still is not (it sends only errors there).
+  `2>> log.md` still is not (it sends only errors there). `echo … >| log.md` is a write too.
+- Every heredoc in a command is checked, not only the first, also one after `&&` or `;` on the
+  same line, and one whose end word has a dash (`<<'END-NOTE'`).
+- A sed script quoted as `$'…'` is read with its escapes, like any quoted script.
 
 ## 0.1.5 (2026-11-02)
 
