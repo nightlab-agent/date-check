@@ -50,11 +50,11 @@ export const shellWrites = (command: string): ShellWrite[] => {
   const clean = command.replace(/\d?>&\d|&>\s*\/dev\/null|\d?>\s*\/dev\/null/g, '')
   const out: ShellWrite[] = []
   // Each heredoc is one write among the others: a second heredoc, a sed -i or an echo in the same command is read too.
-  for (const doc of clean.matchAll(/(?:^|[;&|])[ \t]*(?:cat|tee)\b([^\n]*)<<-?\s*['"]?(\w+)['"]?([^\n]*)\n([\s\S]*?)\n\s*\2\s*$/gm)) {
+  for (const doc of clean.matchAll(/(?:^|[;&|])[ \t]*(?:cat|tee)\b([^\n]*)<<-?\s*['"]?([^\s'"<>;&|()]+)['"]?([^\n]*)\n([\s\S]*?)\n\s*\2\s*$/gm)) {
     const file = target(`${doc[1]} ${doc[3]}`) ?? (/^[;&|]?[ \t]*tee\b/.test(doc[0]) ? target(doc[0].split('\n')[0]!) : undefined)
     if (file && file !== '/dev/null') out.push({ file, text: doc[4]! })
   }
-  for (const part of shellParts(clean.replace(/<<-?\s*['"]?(\w+)['"]?[^\n]*\n[\s\S]*?\n\s*\1\s*$/gm, ''))) {
+  for (const part of shellParts(clean.replace(/<<-?\s*['"]?([^\s'"<>;&|()]+)['"]?[^\n]*\n[\s\S]*?\n\s*\1\s*$/gm, ''))) {
     const sed = sedInPlace(part)
     if (sed) {
       const text = sed.scripts.flatMap(sedCommands).map(writtenText).filter((t): t is string => t !== undefined).join('\n')

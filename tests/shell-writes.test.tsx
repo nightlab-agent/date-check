@@ -54,3 +54,17 @@ test('heredoc comparison: mkdir -p x && cat >> log.md <<EOF of a past time goes 
   world(on)
   expect((await bash($, `mkdir -p x && cat >> log.md <<'EOF'\n- 2026-10-31 15:30 done\nEOF`)).deny).toBeUndefined()
 })
+
+// A heredoc end word with a dash: the script it writes is not run here.
+test('heredoc: end word END-NOTE writing a script that holds an echo goes through', async ($, on) => {
+  world(on)
+  expect((await bash($, `cat > run.sh <<'END-NOTE'\necho "- 2026-12-01 10:00 deploy" >> plan.md\nEND-NOTE`)).deny).toBeUndefined()
+})
+test('heredoc comparison: the same with end word EOF goes through', async ($, on) => {
+  world(on)
+  expect((await bash($, `cat > run.sh <<'EOF'\necho "- 2026-12-01 10:00 deploy" >> plan.md\nEOF`)).deny).toBeUndefined()
+})
+test('heredoc comparison: end word END-NOTE of a future time into log.md is refused', async ($, on) => {
+  world(on)
+  expect((await bash($, `cat >> log.md <<'END-NOTE'\n${T} done\nEND-NOTE`)).deny).toContain('18:30')
+})
