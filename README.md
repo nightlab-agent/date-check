@@ -1,8 +1,8 @@
 # date-check
 
-A Claude Code mod (a plugin that changes what Claude Code does) that checks the
-dates and times Claude writes into your files against the real clock, before
-the write lands.
+Claude can guess the dates and times it writes into your changelogs, logs and
+notes, and a wrong stamp looks just like a right one. This Claude Code plugin
+checks those dates and times against the real clock, before the write lands.
 
 Install with one line at the Claude Code prompt (scopes, the shell form and npm
 are under [Install](#install)):
