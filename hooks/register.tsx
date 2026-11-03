@@ -35,7 +35,7 @@ const target = (part: string) =>
   (new RegExp(String.raw`(?:^|[^\d<>&])>>?\s*` + TARGET).exec(part) ?? new RegExp(String.raw`\btee\s+(?:-a\s+)?` + TARGET).exec(part))?.[1]
 
 /** One write a shell command makes: the file, the text, and for a sed -i its scripts. */
-type ShellWrite = { file: string; text: string; sed?: { scripts: string[]; ere: boolean } }
+type ShellWrite = { file: string; text: string; sed?: { scripts: string[]; ere: boolean; z: boolean } }
 
 /**
  * Every write in a shell command, in order: a `cat` or `tee` heredoc whose own line redirects to a
@@ -54,7 +54,7 @@ export const shellWrites = (command: string): ShellWrite[] => {
     const sed = sedInPlace(part)
     if (sed) {
       const text = sed.scripts.flatMap(sedCommands).map(writtenText).filter((t): t is string => t !== undefined).join('\n')
-      if (text) for (const file of sed.files) out.push({ file, text, sed: { scripts: sed.scripts, ere: sed.ere } })
+      if (text) for (const file of sed.files) out.push({ file, text, sed: { scripts: sed.scripts, ere: sed.ere, z: sed.z } })
       continue
     }
     if (!/^\s*(?:echo|printf)\b/.test(part)) continue
@@ -70,6 +70,24 @@ export const shellWrites = (command: string): ShellWrite[] => {
 const pick = (writes: ShellWrite[]) => {
   const file = (writes.find(w => isText(w.file)) ?? writes[0])?.file
   return file === undefined ? undefined : writes.filter(w => w.file === file)
+}
+
+/** One file's text before and after a shell command's writes to it; undefined when it cannot be read or applied. */
+async function applied($: EngineInterface, file: string, writes: ShellWrite[]) {
+  if (file.startsWith('~') || !(await $.fs.exists(file))) return undefined
+  let before: string
+  try {
+    before = await $.fs.read(file)
+  } catch {
+    return undefined
+  }
+  let after: string | undefined = before
+  for (const w of writes) {
+    if (w.sed) after = applySed(after, w.sed.scripts, w.sed.ere, w.sed.z)
+    else after = `${after}${after === '' || after.endsWith('\n') ? '' : '\n'}${w.text}\n`
+    if (after === undefined) return undefined
+  }
+  return { file, before, after }
 }
 
 /** The file a shell command writes text to, and the text (every write to that file, in order). */
@@ -136,17 +154,23 @@ async function change($: EngineInterface, x: Call): Promise<{ file: string; befo
     // Whether the shell's file is new is only known when its path means one place: not under
     // `~` (the engine does not expand it) and not after a `cd` in the same command.
     const sure = !w.file.startsWith('~') && !movesDir(x.command)
-    // A sed -i on a file that exists: its text after the substitution, judged as the same Edit is.
-    const only = ws.length === 1 ? ws[0]!.sed : undefined
-    if (only && sure && (await $.fs.exists(w.file))) {
-      let before: string | undefined
-      try {
-        before = await $.fs.read(w.file)
-      } catch {
-        before = undefined
+    // A sed -i on files that exist: each file's text after the command (its substitutions, then
+    // what an echo adds), judged as the same Edit is; the first text file it changes is the one judged.
+    if (sure && ws.some(v => v.sed)) {
+      const all = shellWrites(x.command)
+      const files = [...new Set(all.map(v => v.file))].sort((a, b) => Number(isText(b)) - Number(isText(a)))
+      let first: { file: string; before: string; after: string } | undefined
+      let readAll = true
+      for (const file of files) {
+        const r = await applied($, file, all.filter(v => v.file === file))
+        if (!r) {
+          readAll = false
+          break
+        }
+        first ??= r
+        if (r.after !== r.before && isText(file)) return r
       }
-      const after = before === undefined ? undefined : applySed(before, only.scripts, only.ere)
-      if (before !== undefined && after !== undefined) return { file: w.file, before, after }
+      if (readAll && first) return first
     }
     return { file: w.file, before: '', after: w.text, created: sure && !(await $.fs.exists(w.file)) }
   }

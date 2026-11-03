@@ -137,6 +137,17 @@ export const toRegExpSource = (pattern: string, ere: boolean, delim: string): st
   let out = ''
   for (let i = 0; i < pattern.length; i++) {
     const c = pattern[i]!
+    if (!ere && c === '$') {
+      // In a basic pattern `$` is the line's end only last or before \) or \| (GNU); elsewhere a letter.
+      const next = pattern.slice(i + 1, i + 3)
+      out += i === pattern.length - 1 || next === '\\)' || next === '\\|' ? '$' : '\\$'
+      continue
+    }
+    if (!ere && c === '^') {
+      const prev = pattern.slice(Math.max(0, i - 2), i)
+      out += i === 0 || prev === '\\(' || prev === '\\|' ? '^' : '\\^'
+      continue
+    }
     if (c === '[') {
       let j = i + 1
       let body = ''
@@ -190,7 +201,8 @@ const toReplacement = (r: string): string => {
  * but `s` commands with no address, a line number, `$` or one /pattern/ (then the caller judges the
  * written text alone, as before).
  */
-export const applySed = (text: string, scripts: string[], ere: boolean): string | undefined => {
+export const applySed = (text: string, scripts: string[], ere: boolean, z = false): string | undefined => {
+  if (text === '') return '' // sed reads no line in an empty file and writes nothing
   const steps: { on: (line: string, n: number, last: boolean) => boolean; re: RegExp; rep: string }[] = []
   for (const script of scripts) {
     for (const c of sedCommands(script)) {
@@ -202,7 +214,8 @@ export const applySed = (text: string, scripts: string[], ere: boolean): string 
       let re: RegExp
       let on: (line: string, n: number, last: boolean) => boolean = () => true
       try {
-        re = new RegExp(src, (c.flags.includes('g') ? 'g' : '') + (/[Ii]/.test(c.flags) ? 'i' : ''))
+        // `s`: sed's `.` takes a CR (a CRLF file) and, with -z, a new line; JavaScript's takes neither without it.
+        re = new RegExp(src, 's' + (c.flags.includes('g') ? 'g' : '') + (/[Ii]/.test(c.flags) ? 'i' : ''))
         if (c.addr === '$') on = (_l, _n, last) => last
         else if (c.addr && /^\d+$/.test(c.addr)) {
           const want = Number(c.addr)
@@ -220,23 +233,25 @@ export const applySed = (text: string, scripts: string[], ere: boolean): string 
     }
   }
   if (!steps.length) return undefined
-  const lines = text.split('\n')
-  const ends = text.endsWith('\n')
+  const sep = z ? '\0' : '\n'
+  const lines = text.split(sep)
+  const ends = text.endsWith(sep)
   const count = ends ? lines.length - 1 : lines.length
   for (let i = 0; i < count; i++) {
     for (const s of steps) if (s.on(lines[i]!, i + 1, i === count - 1)) lines[i] = lines[i]!.replace(s.re, s.rep)
   }
-  return lines.join('\n')
+  return lines.join(sep)
 }
 
 /** A `sed -i` in one part of a command: its scripts, whether they are extended, and every file it edits. */
-export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; files: string[] } | undefined => {
+export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: boolean; files: string[] } | undefined => {
   const words = [...part.matchAll(/'([^']*)'|"((?:[^"\\]|\\.)*)"|(\|)|([^\s'"|]+)/g)]
   const end = words.findIndex(w => w[3] !== undefined)
   const tokens = (end < 0 ? words : words.slice(0, end)).map(w => ({ text: w[1] ?? w[2] ?? w[4] ?? '', quoted: w[4] === undefined }))
   if (tokens[0]?.text !== 'sed' || tokens[0].quoted) return undefined
   let inPlace = false
   let ere = false
+  let z = false
   const scripts: string[] = []
   const rest: string[] = []
   for (let i = 1; i < tokens.length; i++) {
@@ -245,8 +260,20 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; fil
       if (/^(?:\d*>>?|&>|<)$/.test(t.text)) i++ // `2> err.txt`: the next word is the redirect's
       continue
     }
-    if (!t.quoted && /^-[a-zA-Z]*[Er]/.test(t.text) && !t.text.startsWith('--')) ere = true
+    if (!t.quoted && /^-[a-zA-Z]/.test(t.text)) {
+      // GNU: what follows -i in one word is the backup suffix (`-iE` is -i with suffix "E", a basic pattern).
+      const flags = t.text.slice(1).split('i')[0]!
+      if (/[Er]/.test(flags)) ere = true
+      if (flags.includes('z')) z = true
+    }
     if (!t.quoted && t.text === '--regexp-extended') ere = true
+    if (!t.quoted && t.text === '--null-data') z = true
+    if (!t.quoted && /^--expression=/.test(t.text)) {
+      // `--expression='s/a/b/'`: the script is glued, or is the quoted word that follows `=`.
+      const glued = t.text.slice('--expression='.length)
+      scripts.push(glued || (tokens[++i]?.text ?? ''))
+      continue
+    }
     if (!t.quoted && /^(?:-[a-zA-Z]*i|--in-place)/.test(t.text)) {
       inPlace = true
       if (t.text === '-i' && tokens[i + 1]?.quoted && tokens[i + 1]!.text === '') i++ // BSD: -i ''
@@ -258,5 +285,5 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; fil
   if (!inPlace) return undefined
   if (!scripts.length && rest.length) scripts.push(rest.shift()!)
   const files = rest.filter(f => f !== '/dev/null')
-  return files.length ? { scripts, ere, files } : undefined
+  return files.length ? { scripts, ere, z, files } : undefined
 }

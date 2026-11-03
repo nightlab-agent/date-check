@@ -100,8 +100,9 @@ was filled in from the clock as the file was written.
   when 01:30 happens twice, a local time is only called wrong if it is wrong both times.
 - It checks Write, Edit, and shell commands where `echo` or `printf` writes to
   a file with `>>`, `>` or `| tee`, `cat` or `tee` writes a heredoc to one, or
-  `sed -i` changes one (the text a substitution puts in, or a line `a`, `i` or
-  `c` adds).
+  `sed -i` changes one (on a file that exists, the lines its substitution
+  changes, judged as the same Edit would be; otherwise the text it puts in, or a
+  line `a`, `i` or `c` adds).
 
 Settings (asked when you enable the plugin): minutes ahead allowed (2), minutes
 behind before a note (30), days behind before a note (1), notes on old stamps

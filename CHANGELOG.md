@@ -6,6 +6,14 @@
   like one written by `echo >>`: the text of an `s` command's replacement, and of an `a`, `i`
   or `c` line. Before, `sed -i` was not read at all, so a guessed time put into a log line
   that way went through unseen. A `sed` that only prints (no `-i`) is left alone.
+- When the file exists, its `s` commands are applied to its text and the changed lines are
+  judged as the same Edit would be, so a date put into the middle of a sentence
+  (`s/TBD/2026-11-20/` on "planned for TBD.") is not taken for a stamp. Where the
+  substitution cannot be read the way sed reads it (a line range, the Nth match, `w`, `-f`),
+  the written text is judged alone, as before.
+- A `;` inside a quoted sed script no longer cuts the command; every file a `sed -i` edits is
+  read, a log before a code file; `2>err.txt` is not taken for the file; and a sed on a code
+  file earlier in the command no longer hides an `echo` of a future time into a log.
 
 ## 0.1.5 (2026-11-02)
 
