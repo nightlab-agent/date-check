@@ -14,6 +14,9 @@
 - A `;` inside a quoted sed script no longer cuts the command; every file a `sed -i` edits is
   read, a log before a code file; `2>err.txt` is not taken for the file; and a sed on a code
   file earlier in the command no longer hides an `echo` of a future time into a log.
+- A sed script quoted in pieces (`s/'^- TBD'/'- 18:30'/`) or with escaped spaces is read as
+  the one script the shell passes to sed. Before, only its first piece was read, so the stamp
+  went through unseen.
 
 ## 0.1.5 (2026-11-02)
 

@@ -243,11 +243,55 @@ export const applySed = (text: string, scripts: string[], ere: boolean, z = fals
   return lines.join(sep)
 }
 
+/**
+ * The words of one part of a command up to its first `|`, as the shell reads them: pieces that touch
+ * with no space between (`s/'a b'/"c"/`) are one word, quotes removed; `\ ` outside quotes is a space
+ * in the word. `quoted` says the word began with a quote (then it is never an option or a redirect).
+ * Outside quotes a backslash is dropped only before a space, a quote, a backslash or `|;&`, so a
+ * Windows path (`E:\p\log.md`) keeps its separators.
+ */
+export const shellWords = (part: string): { text: string; quoted: boolean }[] => {
+  const out: { text: string; quoted: boolean }[] = []
+  let text: string | undefined
+  let quoted = false
+  const push = () => {
+    if (text !== undefined) out.push({ text, quoted })
+    text = undefined
+  }
+  for (let i = 0; i < part.length; i++) {
+    const c = part[i]!
+    if (c === '|') break
+    if (/\s/.test(c)) {
+      push()
+      continue
+    }
+    if (text === undefined) {
+      text = ''
+      quoted = c === "'" || c === '"'
+    }
+    if (c === "'") {
+      const end = part.indexOf("'", i + 1)
+      const stop = end < 0 ? part.length : end
+      text += part.slice(i + 1, stop)
+      i = stop
+    } else if (c === '"') {
+      for (i++; i < part.length && part[i] !== '"'; i++) {
+        if (part[i] === '\\' && i + 1 < part.length && '$`"\\\n'.includes(part[i + 1]!)) i++
+        text += part[i]
+      }
+    } else if (c === '\\' && i + 1 < part.length) {
+      const n = part[i + 1]!
+      text += /[\s'"\\|;&]/.test(n) ? n : c + n
+      i++
+    } else text += c
+  }
+  push()
+  return out
+}
+
 /** A `sed -i` in one part of a command: its scripts, whether they are extended, and every file it edits. */
 export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: boolean; files: string[] } | undefined => {
-  const words = [...part.matchAll(/'([^']*)'|"((?:[^"\\]|\\.)*)"|(\|)|([^\s'"|]+)/g)]
-  const end = words.findIndex(w => w[3] !== undefined)
-  const tokens = (end < 0 ? words : words.slice(0, end)).map(w => ({ text: w[1] ?? w[2] ?? w[4] ?? '', quoted: w[4] === undefined }))
+  const tokens = shellWords(part)
   if (tokens[0]?.text !== 'sed' || tokens[0].quoted) return undefined
   let inPlace = false
   let ere = false
