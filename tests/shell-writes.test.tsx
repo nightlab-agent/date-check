@@ -97,3 +97,17 @@ test('wrapper comparison: timeout 5 sed -i of a past time goes through', async (
   world(on, { 'log.md': '- TBD\n' })
   expect((await bash($, `timeout 5 sed -i 's/^- TBD/- 2026-10-31 15:30/' log.md`)).deny).toBeUndefined()
 })
+
+// The >| redirect (write even with noclobber set).
+test('redirect comparison: echo > log.md is refused', async ($, on) => {
+  world(on)
+  expect((await bash($, `echo "${T} done" > log.md`)).deny).toContain('18:30')
+})
+test('redirect: echo >| log.md is refused', async ($, on) => {
+  world(on)
+  expect((await bash($, `echo "${T} done" >| log.md`)).deny).toContain('18:30')
+})
+test('redirect comparison: echo >| log.md of a past time goes through', async ($, on) => {
+  world(on)
+  expect((await bash($, `echo "- 2026-10-31 15:30 done" >| log.md`)).deny).toBeUndefined()
+})

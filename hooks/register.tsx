@@ -32,7 +32,7 @@ export const isText = (path: string) =>
 
 const TARGET = String.raw`["']?([^\s"';|&<>()]+)`
 const target = (part: string) =>
-  (new RegExp(String.raw`(?:^|[^\d<>&])[&1]?>>?\s*` + TARGET).exec(part) ?? new RegExp(String.raw`\btee\s+(?:-a\s+)?` + TARGET).exec(part))?.[1]
+  (new RegExp(String.raw`(?:^|[^\d<>&])[&1]?>>?\|?\s*` + TARGET).exec(part) ?? new RegExp(String.raw`\btee\s+(?:-a\s+)?` + TARGET).exec(part))?.[1]
 
 /** The file a `xargs sed -i` writes, which the pipe names when it runs: judged as a text file not read. */
 export const PIPED = '(files from xargs).txt'
