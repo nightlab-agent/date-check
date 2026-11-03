@@ -131,3 +131,17 @@ test('CR5 comparison: echo of a future time with 2>&1 into log.md is refused', a
   world(on, { 'log.md': '' })
   expect((await bash($, 'echo "- 2026-10-31 18:30 bumped" 2>&1 >> log.md')).deny).toContain('18:30')
 })
+
+// s335: &>> and 1>> send the echo's own text to the file (stdout); 2>> does not.
+test('s335: echo of a future time &>> log.md is refused', async ($, on) => {
+  world(on, { 'log.md': '' })
+  expect((await bash($, `echo "- 2026-10-31 18:30 bumped" &>> log.md`)).deny).toContain('18:30')
+})
+test('s335: echo of a future time 1> log.md is refused', async ($, on) => {
+  world(on, { 'log.md': '' })
+  expect((await bash($, `echo "- 2026-10-31 18:30 bumped" 1> log.md`)).deny).toContain('18:30')
+})
+test('s335 comparison: echo of a future time 2>> log.md writes no stamp there and passes', async ($, on) => {
+  world(on, { 'log.md': '' })
+  expect((await bash($, `echo "- 2026-10-31 18:30 bumped" 2>> log.md`)).deny).toBeUndefined()
+})

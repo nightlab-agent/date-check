@@ -28,6 +28,8 @@
   of a future time elsewhere in the same command; before, only the heredoc was read.
 - A command run in the background with a single `&` is read as its own command, so an `echo`
   of a future time after it is judged. `2>&1`, `>&2`, `&>` and `|&` are not taken for one.
+- `echo … &>> log.md` and `echo … 1> log.md` are seen as writes to the file, as `>>` is;
+  `2>> log.md` still is not (it sends only errors there).
 
 ## 0.1.5 (2026-11-02)
 
