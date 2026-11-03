@@ -37,7 +37,7 @@
     "staleNotes": {
       "type": "boolean",
       "title": "Notes on old stamps",
-      "description": "Tell the agent when a stamp it adds is older than the limits above. Off: only stamps in the future are acted on.",
+      "description": "Tell the agent when a stamp it adds is older than the limits above. Off: only stamps in the future and new files named for a past day are acted on.",
       "default": true
     },
     "promptClock": {

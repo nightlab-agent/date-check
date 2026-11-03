@@ -8,5 +8,5 @@ checks a stamp it writes. Tested on three wrong stamps one agent wrote on 2026-1
 33 minutes old, and two written 17 and 4 minutes ahead of the clock.
 
 Never: block a write for any reason but a stamp in the future or a new file named for a
-day that has passed, and never twice for the same stamp or name in the same file; judge text the file already had; write a file; send
+day that has passed, and never twice for the same line or name in the same file; judge text the file already had; write a file; send
 anything off the machine.

@@ -25,7 +25,7 @@ and a note 16:05 at 16:01, though its notes told it to read the clock. People
 ask for Claude to be told the time
 ([anthropics/claude-code#32913](https://github.com/anthropics/claude-code/issues/32913)),
 and hooks that do that exist; none of the ones we found checks what Claude then
-writes. A mod can read the real clock; this one does both: it tells Claude the
+writes. A plugin can read the real clock; this one does both: it tells Claude the
 time with every prompt, and it reads the clock again at the moment Claude writes
 a stamp.
 
@@ -88,7 +88,7 @@ and said the time was filled in from the clock as the file was written.
   what the call adds is judged, read as whole lines of the file it changes. A
   stamp that was already on a line the call rewrites is kept, not judged.
 - Only Markdown and text files are checked (`.md`, `.markdown`, `.mdx`, `.txt`,
-  `.text`, `.rst`, `.adoc`, `.asciidoc`, `.org`, `.log`, and `CHANGELOG`, `HISTORY`, `NEWS`, `RELEASES`,
+  `.text`, `.rst`, `.adoc`, `.asciidoc`, `.org`, `.log`, and `CHANGELOG`, `CHANGES`, `HISTORY`, `NEWS`, `RELEASE`, `RELEASES`,
   `NOTES` with no extension). A date in code is data, not a stamp.
 - Dates are found as `YYYY-MM-DD`, with an optional time and zone
   (`2026-10-31 16:05`, `2026-10-31T20:05Z`, `2026-10-31 16:05 EST`); a bare `16:05`
@@ -105,8 +105,8 @@ and said the time was filled in from the clock as the file was written.
   (every heredoc in the command, also after `&&` or `;`), or where `sed -i`
   changes one (on a file that exists, the lines its substitution changes, judged
   as the same Edit would be; where the substitution cannot be read the way sed
-  reads it (a line range, the Nth match, `w`, `-f`), the text it puts in, or a line `a`, `i` or
-  `c` adds).
+  reads it (a line range, the Nth match, `w`), the text it puts in, or a line `a`, `i` or
+  `c` adds). A script read from a file (`-f`) is not read, so what it writes is not checked.
 - `sed -i` is found behind settings such as `LC_ALL=C`, a path (`/usr/bin/sed`),
   `gsed`, and `env`, `command`, `sudo`, `timeout`, `nice`, `time` or `nohup`.
   After `xargs` it is checked only when the command feeding the pipe names a text
@@ -136,7 +136,7 @@ year old and offered to rename it to `daily-brief-2026-11-01.md`.
 ## What it writes
 
 No files. It adds one line beside each prompt for Claude to read (the clock, above), and it
-reads the file a Write, an Edit or a `sed -i` is about to change, to judge only the new lines. Nothing leaves your machine through this mod: it makes no network calls.
+reads the file a Write, an Edit or a shell write is about to change, to judge only the new lines. Nothing leaves your machine through this mod: it makes no network calls.
 
 ## How it works
 

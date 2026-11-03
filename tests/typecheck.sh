@@ -1,5 +1,5 @@
 #!/bin/sh
-# Type-check the hooks module, its tests and the state contract against the engine's own
+# Type-check the hooks modules against the engine's own
 # declarations (tsc --noEmit, with the options the declarations' header gives a hooks module).
 # Run from anywhere: sh tests/typecheck.sh
 #

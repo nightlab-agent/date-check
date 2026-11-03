@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.1.6 - 2026-11-03
+## Unreleased
+
+- The README and this log said `sed -i -f` falls back to judging the written text. It does not: a
+  script read from a file is not read, and the README says so now. The `staleNotes` setting says
+  that a new file named for a past day is still refused with it off. The README lists `CHANGES`
+  and `RELEASE` among the checked names and says any shell write reads its file.
+
+## 0.1.6 (2026-11-03)
+
 - A stamp put into a file with `sed -i` (or `--in-place`, `-i.bak`, BSD's `-i ''`) is judged
   like one written by `echo >>`: the text of an `s` command's replacement, and of an `a`, `i`
   or `c` line. Before, `sed -i` was not read at all, so a guessed time put into a log line
@@ -8,7 +16,7 @@
 - When the file exists, its `s` commands are applied to its text and the changed lines are
   judged as the same Edit would be, so a date put into the middle of a sentence
   (`s/TBD/2026-11-20/` on "planned for TBD.") is not taken for a stamp. Where the
-  substitution cannot be read the way sed reads it (a line range, the Nth match, `w`, `-f`),
+  substitution cannot be read the way sed reads it (a line range, the Nth match, `w`),
   the written text is judged alone, as before.
 - A `;` inside a quoted sed script no longer cuts the command; every file a `sed -i` edits is
   read, a log before a code file; `2>err.txt` is not taken for the file; and a sed on a code
