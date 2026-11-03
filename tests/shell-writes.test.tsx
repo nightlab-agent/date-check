@@ -68,3 +68,17 @@ test('heredoc comparison: end word END-NOTE of a future time into log.md is refu
   world(on)
   expect((await bash($, `cat >> log.md <<'END-NOTE'\n${T} done\nEND-NOTE`)).deny).toContain('18:30')
 })
+
+// A sed script in $'...' quotes.
+test("sed comparison: sed -i 's/^- TBD/...' on a two-line log is refused", async ($, on) => {
+  world(on, { 'log.md': '- TBD\n- other\n' })
+  expect((await bash($, `sed -i 's/^- TBD/${T}/' log.md`)).deny).toContain('18:30')
+})
+test("sed: sed -i $'s/^- TBD/...' on a two-line log is refused", async ($, on) => {
+  world(on, { 'log.md': '- TBD\n- other\n' })
+  expect((await bash($, `sed -i $'s/^- TBD/${T}/' log.md`)).deny).toContain('18:30')
+})
+test("sed comparison: sed -i $'s/^- TBD/...' of a past time goes through", async ($, on) => {
+  world(on, { 'log.md': '- TBD\n- other\n' })
+  expect((await bash($, `sed -i $'s/^- TBD/- 2026-10-31 15:30/' log.md`)).deny).toBeUndefined()
+})

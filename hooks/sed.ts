@@ -261,8 +261,8 @@ type Word = { text: string; quoted: boolean; pipe?: boolean }
 
 /**
  * The words of one part of a command, as the shell reads them: pieces that touch with no space
- * between (`s/'a b'/"c"/`) are one word, quotes removed; `\ ` outside quotes is a space in the word;
- * a `|` outside quotes is a word of its own (`pipe`). `quoted` says the word began with a quote (then
+ * between (`s/'a b'/"c"/`) are one word, quotes removed (`$'...'` with its C escapes read); `\ `
+ * outside quotes is a space in the word; a `|` outside quotes is a word of its own (`pipe`). `quoted` says the word began with a quote (then
  * it is never an option or a redirect). Outside quotes a backslash is dropped only before a space, a
  * quote, a backslash or `|;&`, so a Windows path (`E:\p\log.md`) keeps its separators.
  */
@@ -287,9 +287,18 @@ export const shellWords = (part: string): Word[] => {
     }
     if (text === undefined) {
       text = ''
-      quoted = c === "'" || c === '"'
+      quoted = c === "'" || c === '"' || (c === '$' && part[i + 1] === "'")
     }
-    if (c === "'") {
+    if (c === '$' && part[i + 1] === "'") {
+      // `$'...'`: quoted, with C escapes (`\n`, `\t`, `\'`, `\\`); any other backslash stays as written.
+      const esc: Record<string, string> = { n: '\n', t: '\t', r: '\r', "'": "'", '\\': '\\', '"': '"' }
+      for (i += 2; i < part.length && part[i] !== "'"; i++) {
+        if (part[i] === '\\' && i + 1 < part.length) {
+          const n = part[++i]!
+          text += esc[n] ?? `\\${n}`
+        } else text += part[i]
+      }
+    } else if (c === "'") {
       const end = part.indexOf("'", i + 1)
       const stop = end < 0 ? part.length : end
       text += part.slice(i + 1, stop)
