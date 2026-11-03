@@ -55,3 +55,35 @@ test('CR4 comparison: the lone ] pattern with a * bullet is refused', async ($, 
   world(on, { 'log.md': '- * TBD]\n' })
   expect((await bash($, "sed -i 's/^- . TBD]/- 2026-10-31 18:30/' log.md")).deny).toContain('18:30')
 })
+
+// CR2: sed is only seen as the first word; a prefix hides it.
+test('CR2a: LC_ALL=C sed -i is refused', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n' })
+  expect((await bash($, `LC_ALL=C ${SED}`)).deny).toContain('18:30')
+})
+test('CR2b: /usr/bin/sed -i is refused', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n' })
+  expect((await bash($, `/usr/bin/${SED}`)).deny).toContain('18:30')
+})
+test('CR2c: grep -l TBD log.md | xargs sed -i is refused', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n' })
+  expect((await bash($, "grep -l TBD log.md | xargs sed -i 's/^- TBD/- 2026-10-31 18:30/'")).deny).toContain('18:30')
+})
+for (const pre of ['env -u X LC_ALL=C ', 'command ', 'sudo -u root ', 'A=1 B=2 ', 'g'])
+  test(`CR2: ${pre}${SED} is refused`, async ($, on) => {
+    world(on, { 'log.md': '- TBD\n' })
+    expect((await bash($, pre + SED)).deny).toContain('18:30')
+  })
+test('CR2: find . -name log.md | xargs -I {} sed -i ... {} is refused', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n' })
+  expect((await bash($, "find . -name log.md | xargs -I {} sed -i 's/^- TBD/- 2026-10-31 18:30/' {}")).deny).toContain('18:30')
+})
+test('CR2 comparison: xargs sed without -i, and env sed without -i, go through', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n' })
+  expect(await bash($, "grep -l TBD log.md | xargs sed 's/^- TBD/- 2026-10-31 18:30/'")).not.toHaveProperty('deny')
+  expect(await bash($, "LC_ALL=C sed 's/^- TBD/- 2026-10-31 18:30/' log.md")).not.toHaveProperty('deny')
+})
+test('CR2 comparison: xargs sed -i writing a past time goes through', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n' })
+  expect(await bash($, "grep -l TBD log.md | xargs sed -i 's/^- TBD/- 2026-10-31 15:30/'")).not.toHaveProperty('deny')
+})

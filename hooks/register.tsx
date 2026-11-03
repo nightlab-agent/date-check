@@ -34,6 +34,9 @@ const TARGET = String.raw`["']?([^\s"';|&<>()]+)`
 const target = (part: string) =>
   (new RegExp(String.raw`(?:^|[^\d<>&])>>?\s*` + TARGET).exec(part) ?? new RegExp(String.raw`\btee\s+(?:-a\s+)?` + TARGET).exec(part))?.[1]
 
+/** The file a `xargs sed -i` writes, which the pipe names when it runs: judged as a text file not read. */
+export const PIPED = '(files from xargs).txt'
+
 /** One write a shell command makes: the file, the text, and for a sed -i its scripts. */
 type ShellWrite = { file: string; text: string; sed?: { scripts: string[]; ere: boolean; z: boolean } }
 
@@ -55,6 +58,8 @@ export const shellWrites = (command: string): ShellWrite[] => {
     if (sed) {
       const text = sed.scripts.flatMap(sedCommands).map(writtenText).filter((t): t is string => t !== undefined).join('\n')
       if (text) for (const file of sed.files) out.push({ file, text, sed: { scripts: sed.scripts, ere: sed.ere, z: sed.z } })
+      // Run by xargs: the files come from the pipe, so the text it writes is judged alone.
+      if (text && sed.piped) out.push({ file: PIPED, text })
       continue
     }
     if (!/^\s*(?:echo|printf)\b/.test(part)) continue
@@ -155,7 +160,7 @@ async function changes($: EngineInterface, x: Call): Promise<Change[]> {
     const moved = movesDir(x.command)
     const out: Change[] = []
     for (const file of [...new Set(all.map(v => v.file))]) {
-      const sure = !file.startsWith('~') && !moved
+      const sure = !file.startsWith('~') && !moved && file !== PIPED
       let ws = all.filter(v => v.file === file)
       const exists = sure && (await $.fs.exists(file))
       // sed -i edits only files that exist: on a missing one it writes nothing there (and goes on to the next).

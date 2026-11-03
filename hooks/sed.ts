@@ -256,15 +256,17 @@ export const applySed = (text: string, scripts: string[], ere: boolean, z = fals
   return lines.join(sep)
 }
 
+type Word = { text: string; quoted: boolean; pipe?: boolean }
+
 /**
- * The words of one part of a command up to its first `|`, as the shell reads them: pieces that touch
- * with no space between (`s/'a b'/"c"/`) are one word, quotes removed; `\ ` outside quotes is a space
- * in the word. `quoted` says the word began with a quote (then it is never an option or a redirect).
- * Outside quotes a backslash is dropped only before a space, a quote, a backslash or `|;&`, so a
- * Windows path (`E:\p\log.md`) keeps its separators.
+ * The words of one part of a command, as the shell reads them: pieces that touch with no space
+ * between (`s/'a b'/"c"/`) are one word, quotes removed; `\ ` outside quotes is a space in the word;
+ * a `|` outside quotes is a word of its own (`pipe`). `quoted` says the word began with a quote (then
+ * it is never an option or a redirect). Outside quotes a backslash is dropped only before a space, a
+ * quote, a backslash or `|;&`, so a Windows path (`E:\p\log.md`) keeps its separators.
  */
-export const shellWords = (part: string): { text: string; quoted: boolean }[] => {
-  const out: { text: string; quoted: boolean }[] = []
+export const shellWords = (part: string): Word[] => {
+  const out: Word[] = []
   let text: string | undefined
   let quoted = false
   const push = () => {
@@ -273,7 +275,11 @@ export const shellWords = (part: string): { text: string; quoted: boolean }[] =>
   }
   for (let i = 0; i < part.length; i++) {
     const c = part[i]!
-    if (c === '|') break
+    if (c === '|') {
+      push()
+      out.push({ text: '|', quoted: false, pipe: true })
+      continue
+    }
     if (/\s/.test(c)) {
       push()
       continue
@@ -302,10 +308,56 @@ export const shellWords = (part: string): { text: string; quoted: boolean }[] =>
   return out
 }
 
-/** A `sed -i` in one part of a command: its scripts, whether they are extended, and every file it edits. */
-export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: boolean; files: string[] } | undefined => {
-  const tokens = shellWords(part)
-  if (tokens[0]?.text !== 'sed' || tokens[0].quoted) return undefined
+/** Commands that run the command after them, each with its options that take the next word as a value. */
+const WRAPPERS: Record<string, string> = { env: 'uCS', command: '', sudo: 'ugCDhpUrtT', xargs: 'IiLlnPsdEa' }
+const base = (w: Word) => (w.quoted ? '' : w.text.split(/[\\/]/).pop()!.replace(/\.exe$/i, ''))
+
+/**
+ * The sed in one command of a pipeline, past `VAR=x` assignments and the wrappers env, command,
+ * sudo and xargs (with their options); `/usr/bin/sed` and `gsed` are sed. `piped`: xargs runs it,
+ * so more files, not known here, come from the pipe.
+ */
+const sedWords = (words: Word[]): { words: Word[]; piped: boolean } | undefined => {
+  let i = 0
+  let piped = false
+  while (i < words.length) {
+    const w = words[i]!
+    if (!w.quoted && /^[A-Za-z_]\w*=/.test(w.text)) {
+      i++
+      continue
+    }
+    const name = base(w)
+    if (!Object.hasOwn(WRAPPERS, name)) break
+    if (name === 'xargs') piped = true
+    for (i++; i < words.length && !words[i]!.quoted && words[i]!.text.startsWith('-'); i++) {
+      const t = words[i]!.text
+      if (t === '--') {
+        i++
+        break
+      }
+      // `-u root`: the value is the next word; `-I{}`, `--user=root`: glued.
+      if (/^-[a-zA-Z]$/.test(t) && WRAPPERS[name]!.includes(t[1]!)) i++
+    }
+  }
+  const w = words[i]
+  return w && /^g?sed$/.test(base(w)) ? { words: words.slice(i), piped } : undefined
+}
+
+/**
+ * A `sed -i` in one part of a command (any command of a pipeline): its scripts, whether they are
+ * extended, every file it names, and `piped` when xargs runs it (then more files come from the pipe).
+ */
+export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: boolean; files: string[]; piped: boolean } | undefined => {
+  const all = shellWords(part)
+  let found: ReturnType<typeof sedWords>
+  for (let start = 0; !found && start <= all.length; ) {
+    const end = all.findIndex((w, k) => k >= start && w.pipe)
+    found = sedWords(all.slice(start, end < 0 ? undefined : end))
+    if (end < 0) break
+    start = end + 1
+  }
+  if (!found) return undefined
+  const tokens = found.words
   let inPlace = false
   let ere = false
   let z = false
@@ -342,5 +394,5 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: 
   if (!inPlace) return undefined
   if (!scripts.length && rest.length) scripts.push(rest.shift()!)
   const files = rest.filter(f => f !== '/dev/null')
-  return files.length ? { scripts, ere, z, files } : undefined
+  return files.length || found.piped ? { scripts, ere, z, files, piped: found.piped } : undefined
 }

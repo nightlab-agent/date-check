@@ -20,6 +20,10 @@
 - A sed pattern's `.` now takes a whole emoji, as sed does, so `s/^- . TBD/…/` on a line
   `- 🚀 TBD` is judged on the line it really changes. Before, the line looked unchanged and a
   future time went through.
+- A `sed -i` is found behind `LC_ALL=C` and other settings, a path (`/usr/bin/sed`), `gsed`,
+  and the commands that run it (`env`, `command`, `sudo`, `xargs`). After `xargs` the files
+  come from the pipe, so the text it writes is judged on its own. Before, only a command that
+  began with the word `sed` was read.
 
 ## 0.1.5 (2026-11-02)
 
