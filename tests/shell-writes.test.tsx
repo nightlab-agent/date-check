@@ -44,3 +44,13 @@ test('heredoc: a second heredoc (first to notes.md, second to log.md) is refused
   world(on)
   expect((await bash($, `cat >> notes.md <<'A'\n- ok\nA\ncat >> log.md <<'B'\n${T} done\nB`)).deny).toContain('18:30')
 })
+
+// A heredoc after && on the same line.
+test('heredoc: mkdir -p x && cat >> log.md <<EOF (heredoc not first on its line) is refused', async ($, on) => {
+  world(on)
+  expect((await bash($, `mkdir -p x && cat >> log.md <<'EOF'\n${T} done\nEOF`)).deny).toContain('18:30')
+})
+test('heredoc comparison: mkdir -p x && cat >> log.md <<EOF of a past time goes through', async ($, on) => {
+  world(on)
+  expect((await bash($, `mkdir -p x && cat >> log.md <<'EOF'\n- 2026-10-31 15:30 done\nEOF`)).deny).toBeUndefined()
+})
