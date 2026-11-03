@@ -1,6 +1,7 @@
 import type { EngineInterface, Register } from 'claude-code'
 import { clockText, dateOfFile, dayOf, fillNow, gapText, judge, judgeName, LIMITS, newStamps, unfill } from './stamps'
 import type { Limits, Verdict } from './stamps'
+import { applySed, sedCommands, sedInPlace, shellParts, writtenText } from './sed'
 
 // date-check, the hooks module. Before a Write, an Edit, or a shell command that appends to
 // a file lands, it finds the date and time stamps the agent added (stamps.ts says which
@@ -33,75 +34,48 @@ const TARGET = String.raw`["']?([^\s"';|&<>()]+)`
 const target = (part: string) =>
   (new RegExp(String.raw`(?:^|[^\d<>&])>>?\s*` + TARGET).exec(part) ?? new RegExp(String.raw`\btee\s+(?:-a\s+)?` + TARGET).exec(part))?.[1]
 
-const ADDRESS = String.raw`(?:\d+|\$|\/(?:[^\/\\]|\\.)*\/)`
-
-/** The text one sed script writes: a substitution's replacement, or what `a`, `i` or `c` adds. */
-const sedText = (script: string): string | undefined => {
-  const rest = script.replace(new RegExp(String.raw`^\s*(?:${ADDRESS}(?:\s*,\s*${ADDRESS})?)?\s*`), '')
-  const s = /^s(.)/.exec(rest)
-  if (s) {
-    const d = s[1]!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const m = new RegExp(String.raw`^s${d}(?:[^\\${d}]|\\.)*${d}((?:[^\\${d}]|\\.)*)${d}`).exec(rest)
-    return m ? m[1]!.replace(new RegExp(String.raw`\\(${d})`, 'g'), '$1') : undefined
-  }
-  return /^[aic]\\?\s*([\s\S]*)$/.exec(rest)?.[1]
-}
-
-/** A `sed -i` (or `--in-place`) in one part of a command: the file it edits and the text it writes. */
-const sedWrite = (part: string): { file: string; text: string } | undefined => {
-  const words = [...part.matchAll(/'([^']*)'|"((?:[^"\\]|\\.)*)"|(\|)|([^\s'"|]+)/g)]
-  const end = words.findIndex(w => w[3] !== undefined)
-  const tokens = (end < 0 ? words : words.slice(0, end)).map(w => ({ text: w[1] ?? w[2] ?? w[4] ?? '', quoted: w[4] === undefined }))
-  if (tokens[0]?.text !== 'sed' || tokens[0].quoted) return undefined
-  let inPlace = false
-  const scripts: string[] = []
-  const rest: string[] = []
-  for (let i = 1; i < tokens.length; i++) {
-    const t = tokens[i]!
-    if (!t.quoted && /^(?:-[a-zA-Z]*i|--in-place)/.test(t.text)) {
-      inPlace = true
-      if (t.text === '-i' && tokens[i + 1]?.quoted && tokens[i + 1]!.text === '') i++ // BSD: -i ''
-    } else if (!t.quoted && (t.text === '-e' || t.text === '--expression')) scripts.push(tokens[++i]?.text ?? '')
-    else if (!t.quoted && t.text.startsWith('-')) continue
-    else rest.push(t.text)
-  }
-  if (!inPlace) return undefined
-  if (!scripts.length && rest.length) scripts.push(rest.shift()!)
-  const file = rest.pop()
-  const texts = scripts.map(sedText).filter((t): t is string => t !== undefined)
-  return file && texts.length ? { file, text: texts.join('\n') } : undefined
-}
+/** One write a shell command makes: the file, the text, and for a sed -i its scripts. */
+type ShellWrite = { file: string; text: string; sed?: { scripts: string[]; ere: boolean } }
 
 /**
- * The file a shell command writes text to, and the text: a `cat` or `tee` heredoc whose own
- * line redirects to a file, or an `echo`/`printf` whose own part of the command (between
- * `&&`, `||`, `;` and new lines) sends it to a file with `>>`, `>` or `| tee`.
+ * Every write in a shell command, in order: a `cat` or `tee` heredoc whose own line redirects to a
+ * file, an `echo`/`printf` whose own part of the command (between `&&`, `||`, `;` and new lines,
+ * outside quotes) sends it to a file with `>>`, `>` or `| tee`, and each file a `sed -i` edits.
  */
-export const shellWrite = (command: string): { file: string; text: string } | undefined => {
+export const shellWrites = (command: string): ShellWrite[] => {
   const clean = command.replace(/\d?>&\d|&>\s*\/dev\/null|\d?>\s*\/dev\/null/g, '')
   const doc = /^[ \t]*(?:cat|tee)\b([^\n]*)<<-?\s*['"]?(\w+)['"]?([^\n]*)\n([\s\S]*?)\n\s*\2\s*$/m.exec(clean)
   if (doc) {
     const file = target(`${doc[1]} ${doc[3]}`) ?? (/^[ \t]*tee\b/m.test(doc[0]) ? target(doc[0].split('\n')[0]!) : undefined)
-    if (file && file !== '/dev/null') return { file, text: doc[4]! }
+    if (file && file !== '/dev/null') return [{ file, text: doc[4]! }]
   }
-  let file: string | undefined
-  const texts: string[] = []
-  for (const part of clean.replace(/<<-?\s*['"]?(\w+)['"]?[^\n]*\n[\s\S]*?\n\s*\1\s*$/gm, '').split(/&&|\|\||;|\n/)) {
-    const sed = sedWrite(part)
+  const out: ShellWrite[] = []
+  for (const part of shellParts(clean.replace(/<<-?\s*['"]?(\w+)['"]?[^\n]*\n[\s\S]*?\n\s*\1\s*$/gm, ''))) {
+    const sed = sedInPlace(part)
     if (sed) {
-      if (sed.file === '/dev/null' || (file !== undefined && sed.file !== file)) continue
-      file = sed.file
-      texts.push(sed.text)
+      const text = sed.scripts.flatMap(sedCommands).map(writtenText).filter((t): t is string => t !== undefined).join('\n')
+      if (text) for (const file of sed.files) out.push({ file, text, sed: { scripts: sed.scripts, ere: sed.ere } })
       continue
     }
     if (!/^\s*(?:echo|printf)\b/.test(part)) continue
     const to = target(part.replace(/\|\s*tee\b/, ' tee'))
-    if (!to || to === '/dev/null' || (file !== undefined && to !== file)) continue
-    file = to
+    if (!to || to === '/dev/null') continue
     const said = [...part.matchAll(/(?:"((?:[^"\\]|\\.)*)"|'([^']*)')/g)].map(m => (m[1] ?? m[2] ?? '').replace(/\\n/g, '\n'))
-    texts.push(said.length ? said.join('\n') : part)
+    out.push({ file: to, text: said.length ? said.join('\n') : part })
   }
-  return file === undefined ? undefined : { file, text: texts.join('\n') }
+  return out
+}
+
+/** The one file a shell command is judged on: the first text file it writes (a log before code), else the first file. */
+const pick = (writes: ShellWrite[]) => {
+  const file = (writes.find(w => isText(w.file)) ?? writes[0])?.file
+  return file === undefined ? undefined : writes.filter(w => w.file === file)
+}
+
+/** The file a shell command writes text to, and the text (every write to that file, in order). */
+export const shellWrite = (command: string): { file: string; text: string } | undefined => {
+  const ws = pick(shellWrites(command))
+  return ws && { file: ws[0]!.file, text: ws.map(w => w.text).join('\n') }
 }
 
 /** The directory changes in a shell command (`cd a`, `(pushd b`): after one, a relative path means no one place. */
@@ -156,11 +130,24 @@ async function change($: EngineInterface, x: Call): Promise<{ file: string; befo
     return { file: x.file_path, before: x.old_string, after: x.new_string }
   }
   if (x.tool === 'Bash' && typeof x.command === 'string') {
-    const w = shellWrite(x.command)
-    if (!w) return none
+    const ws = pick(shellWrites(x.command))
+    if (!ws) return none
+    const w = { file: ws[0]!.file, text: ws.map(v => v.text).join('\n') }
     // Whether the shell's file is new is only known when its path means one place: not under
     // `~` (the engine does not expand it) and not after a `cd` in the same command.
     const sure = !w.file.startsWith('~') && !movesDir(x.command)
+    // A sed -i on a file that exists: its text after the substitution, judged as the same Edit is.
+    const only = ws.length === 1 ? ws[0]!.sed : undefined
+    if (only && sure && (await $.fs.exists(w.file))) {
+      let before: string | undefined
+      try {
+        before = await $.fs.read(w.file)
+      } catch {
+        before = undefined
+      }
+      const after = before === undefined ? undefined : applySed(before, only.scripts, only.ere)
+      if (before !== undefined && after !== undefined) return { file: w.file, before, after }
+    }
     return { file: w.file, before: '', after: w.text, created: sure && !(await $.fs.exists(w.file)) }
   }
   return none

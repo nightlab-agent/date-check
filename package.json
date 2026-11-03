@@ -23,6 +23,7 @@
     ".claude-plugin/",
     "hooks/hooks.json",
     "hooks/register.tsx",
+    "hooks/sed.ts",
     "hooks/stamps.ts",
     "CHANGELOG.md"
   ]

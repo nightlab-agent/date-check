@@ -9,10 +9,13 @@ const NOW = new Date(2026, 9, 31, 16, 1).getTime()
 const world = (on: On, files: Record<string, string> = {}) => {
   const fs = new Map(Object.entries(files))
   const ran: string[] = []
+  // The engine hands fs.exists and fs.read the path joined to the session's directory
+  // (seen 2026-11-02: "plan.md" arrives as "<cwd>/plan.md"); the files here are named bare.
+  const at = (p: string) => (fs.has(p) ? p : p.split(/[/\\]/).pop()!)
   mock.clock(on, { now: NOW })
-  on('fs.exists', (_, e) => ({ value: fs.has(e.path) }))
+  on('fs.exists', (_, e) => ({ value: fs.has(at(e.path)) }))
   on('fs.read', (_, e) => {
-    const t = fs.get(e.path)
+    const t = fs.get(at(e.path))
     if (t === undefined) throw new Error('ENOENT')
     return { value: t }
   })
