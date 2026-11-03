@@ -104,7 +104,8 @@ and said the time was filled in from the clock as the file was written.
   so it is not a write of the text), where `cat` or `tee` writes a heredoc to one
   (every heredoc in the command, also after `&&` or `;`), or where `sed -i`
   changes one (on a file that exists, the lines its substitution changes, judged
-  as the same Edit would be; otherwise the text it puts in, or a line `a`, `i` or
+  as the same Edit would be; where the substitution cannot be read the way sed
+  reads it (a line range, the Nth match, `w`, `-f`), the text it puts in, or a line `a`, `i` or
   `c` adds).
 - `sed -i` is found behind settings such as `LC_ALL=C`, a path (`/usr/bin/sed`),
   `gsed`, and `env`, `command`, `sudo`, `timeout`, `nice`, `time` or `nohup`.
