@@ -220,14 +220,15 @@ export const applySed = (text: string, scripts: string[], ere: boolean, z = fals
 const WRAPPERS: Record<string, string> = {
   env: 'uCS', command: '', sudo: 'ugCDhpUrtT', xargs: 'IiLlnPsdEa', timeout: 'ks', nice: 'n', time: 'fo', nohup: '',
 }
-const base = (w: Word) => (w.quoted ? '' : w.text.split(/[\\/]/).pop()!.replace(/\.exe$/i, ''))
+/** The name a word runs: `/usr/bin/sed` is sed; a quoted word runs none here. */
+export const commandName = (w: Word) => (w.quoted ? '' : w.text.split(/[\\/]/).pop()!.replace(/\.exe$/i, ''))
 
 /**
- * The sed in one command of a pipeline, past `VAR=x` assignments and the wrappers env, command,
- * sudo, xargs, timeout (and its duration), nice, time and nohup (with their options); `/usr/bin/sed` and `gsed` are sed. `piped`: xargs runs it,
+ * The command in one stage of a pipeline, past `VAR=x` assignments and the wrappers env, command,
+ * sudo, xargs, timeout (and its duration), nice, time and nohup (with their options); `piped`: xargs runs it,
  * so more files, not known here, come from the pipe.
  */
-const sedWords = (words: Word[]): { words: Word[]; piped: boolean } | undefined => {
+export const commandIn = (words: Word[]): { words: Word[]; piped: boolean } | undefined => {
   let i = 0
   let piped = false
   while (i < words.length) {
@@ -236,7 +237,7 @@ const sedWords = (words: Word[]): { words: Word[]; piped: boolean } | undefined 
       i++
       continue
     }
-    const name = base(w)
+    const name = commandName(w)
     if (!Object.hasOwn(WRAPPERS, name)) break
     if (name === 'xargs') piped = true
     for (i++; i < words.length && !words[i]!.quoted && words[i]!.text.startsWith('-'); i++) {
@@ -251,8 +252,13 @@ const sedWords = (words: Word[]): { words: Word[]; piped: boolean } | undefined 
     // `timeout 5s sed ...`: the duration comes before the command.
     if (name === 'timeout' && i < words.length) i++
   }
-  const w = words[i]
-  return w && /^g?sed$/.test(base(w)) ? { words: words.slice(i), piped } : undefined
+  return i < words.length ? { words: words.slice(i), piped } : undefined
+}
+
+/** The sed in one command of a pipeline; `gsed` is sed. */
+const sedWords = (words: Word[]) => {
+  const run = commandIn(words)
+  return run && /^g?sed$/.test(commandName(run.words[0]!)) ? run : undefined
 }
 
 /**
@@ -280,8 +286,8 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: 
   const rest: string[] = []
   for (let i = 1; i < tokens.length; i++) {
     const t = tokens[i]!
-    if (!t.quoted && /^(?:\d*>>?|&>|<)/.test(t.text)) {
-      if (/^(?:\d*>>?|&>|<)$/.test(t.text)) i++ // `2> err.txt`: the next word is the redirect's
+    if (t.redirect) {
+      i++ // `2> err.txt`: the next word is the redirect's
       continue
     }
     if (!t.quoted && /^-[a-zA-Z]/.test(t.text)) {

@@ -1,15 +1,32 @@
 // What a shell command writes: for each file it names, the text it sends there.
 
-import { sedCommands, sedInPlace, shellParts, writtenText } from './sed'
+import { commandIn, commandName, sedCommands, sedInPlace, shellParts, writtenText } from './sed'
+import { shellWords, stages, withoutRedirects } from './shell'
 
 /** Files whose stamps are judged: Markdown and plain text, logs, and changelog-like names. Code is not. */
 export const isText = (path: string) =>
   /\.(?:md|markdown|mdx|txt|text|rst|adoc|asciidoc|org|log)$/i.test(path) ||
   /(?:^|[/\\])(?:CHANGELOG|CHANGES|HISTORY|NEWS|RELEASES?|NOTES)$/i.test(path)
 
-const TARGET = String.raw`["']?([^\s"';|&<>()]+)`
-const target = (part: string) =>
-  (new RegExp(String.raw`(?:^|[^\d<>&])[&1]?>>?\|?\s*` + TARGET).exec(part) ?? new RegExp(String.raw`\btee\s+(?:-a\s+)?` + TARGET).exec(part))?.[1]
+/**
+ * The files a part of a command sends its output to, read from its words so a quoted `>` is text
+ * and a quoted name is one name: each `>`, `>>`, `>|`, `&>`, `&>>` or `1>` (not `2>`, which sends
+ * only errors, nor `>&2`, a stream), and every file a `tee` in the pipeline names.
+ */
+const outFiles = (part: string) => {
+  const files: string[] = []
+  for (const stage of stages(shellWords(part))) {
+    for (const [i, w] of stage.entries()) {
+      const to = stage[i + 1]
+      if (!w.redirect || !to || !/^(?:1?>|&>)/.test(w.text)) continue
+      if (!(w.text.endsWith('&') && /^(?:\d+-?|-)$/.test(to.text))) files.push(to.text)
+    }
+    const run = commandIn(stage)
+    if (run && commandName(run.words[0]!) === 'tee')
+      files.push(...withoutRedirects(run.words.slice(1)).filter(w => w.quoted || !w.text.startsWith('-')).map(w => w.text))
+  }
+  return files.filter(f => f !== '/dev/null')
+}
 
 /** The file a `xargs sed -i` writes, which the pipe names when it runs: judged as a text file not read. */
 export const PIPED = '(files from xargs).txt'
@@ -19,19 +36,18 @@ export type ShellWrite = { file: string; text: string; sed?: { scripts: string[]
 
 /**
  * Every write in a shell command, in order: each `cat` or `tee` heredoc (at a line's start or after
- * `&&`, `||`, `;` or `|`) whose own line redirects to a file, an `echo`/`printf` whose own part of
- * the command (between `&&`, `||`, `;` and new lines, outside quotes) sends it to a file with `>>`,
- * `>` or `| tee`, and each file a `sed -i` edits.
+ * `&&`, `||`, `;` or `|`) whose own line sends it to a file, an `echo`/`printf` whose own part of
+ * the command (between `&&`, `||`, `;` and new lines, outside quotes) sends it to a file
+ * (outFiles), and each file a `sed -i` edits.
  */
 export const shellWrites = (command: string): ShellWrite[] => {
-  const clean = command.replace(/\d?>&\d|&>\s*\/dev\/null|\d?>\s*\/dev\/null/g, '')
   const out: ShellWrite[] = []
   // Each heredoc is one write among the others: a second heredoc, a sed -i or an echo in the same command is read too.
-  for (const doc of clean.matchAll(/(?:^|[;&|])[ \t]*(?:cat|tee)\b([^\n]*)<<-?\s*['"]?([^\s'"<>;&|()]+)['"]?([^\n]*)\n([\s\S]*?)\n\s*\2\s*$/gm)) {
-    const file = target(`${doc[1]} ${doc[3]}`) ?? (/^[;&|]?[ \t]*tee\b/.test(doc[0]) ? target(doc[0].split('\n')[0]!) : undefined)
-    if (file && file !== '/dev/null') out.push({ file, text: doc[4]! })
+  for (const doc of command.matchAll(/(?:^|[;&|])[ \t]*(cat|tee)\b([^\n]*)<<-?\s*['"]?([^\s'"<>;&|()]+)['"]?([^\n]*)\n([\s\S]*?)\n\s*\3\s*$/gm)) {
+    // What follows the heredoc's own command on that line (`&& echo ...`) is read with the other parts below.
+    for (const file of outFiles(`${doc[1]}${doc[2]} ${shellParts(doc[4]!)[0]}`)) out.push({ file, text: doc[5]! })
   }
-  for (const part of shellParts(clean.replace(/<<-?\s*['"]?([^\s'"<>;&|()]+)['"]?[^\n]*\n[\s\S]*?\n\s*\1\s*$/gm, ''))) {
+  for (const part of shellParts(command.replace(/<<-?\s*['"]?([^\s'"<>;&|()]+)['"]?([^\n]*)\n[\s\S]*?\n\s*\1\s*$/gm, '$2'))) {
     const sed = sedInPlace(part)
     if (sed) {
       const text = sed.scripts.flatMap(sedCommands).map(writtenText).filter((t): t is string => t !== undefined).join('\n')
@@ -41,11 +57,11 @@ export const shellWrites = (command: string): ShellWrite[] => {
       if (text && sed.piped && sed.source.some(isText)) out.push({ file: PIPED, text })
       continue
     }
-    if (!/^\s*(?:echo|printf)\b/.test(part)) continue
-    const to = target(part.replace(/\|\s*tee\b/, ' tee'))
-    if (!to || to === '/dev/null') continue
+    const first = stages(shellWords(part)).find(stage => stage.length)
+    const run = first && commandIn(first)
+    if (!run || !/^(?:echo|printf)$/.test(commandName(run.words[0]!))) continue
     const said = [...part.matchAll(/(?:"((?:[^"\\]|\\.)*)"|'([^']*)')/g)].map(m => (m[1] ?? m[2] ?? '').replace(/\\n/g, '\n'))
-    out.push({ file: to, text: said.length ? said.join('\n') : part })
+    for (const file of outFiles(part)) out.push({ file, text: said.length ? said.join('\n') : part })
   }
   return out
 }

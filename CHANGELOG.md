@@ -6,6 +6,12 @@
   script read from a file is not read, and the README says so now. The `staleNotes` setting says
   that a new file named for a past day is still refused with it off. The README lists `CHANGES`
   and `RELEASE` among the checked names and says any shell write reads its file.
+- A shell write is now read word by word, quotes resolved. A `>` inside the echoed text no
+  longer hides the real file or stands for a write that never happens (`echo "... > notes.md"`
+  with no redirect is left alone), and a quoted name or `my\ notes.md` is one file, in an echo
+  and a heredoc. `tee --append`, `tee -a -i` and every file a `tee` names are read, and an
+  echo after a heredoc on the heredoc line is judged. tests/shell-targets.test.tsx fails on 11
+  cases without this. Not seen on a screen.
 
 ## 0.1.6 (2026-11-03)
 
