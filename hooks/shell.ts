@@ -1,6 +1,43 @@
 // The shell side of reading a command: its parts between separators and the words of one part,
 // cut only outside quotes, the way the shell itself reads them.
 
+/** The named backslash escapes of a `printf` format, a `%b` argument or a `$'...'` word. */
+export const ESCAPES: Record<string, string> = { a: '\x07', b: '\b', e: '\x1b', E: '\x1b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v', '\\': '\\', '"': '"', "'": "'", '?': '?' }
+/** One backslash escape: hex, the two unicode forms, octal, or a single character. */
+export const ESCAPE = (octal: string) => new RegExp(`\\\\(?:x([\\da-fA-F]{1,2})|u([\\da-fA-F]{1,4})|U([\\da-fA-F]{1,8})|(${octal})|([\\s\\S]))`, 'g')
+export const IN_FORMAT = ESCAPE('[0-7]{1,3}')
+export const escapeValue = ([whole, hex, short, long, octal, c]: RegExpMatchArray) => {
+  const code = hex ?? short ?? long ? parseInt((hex ?? short ?? long)!, 16) : octal ? parseInt(octal, 8) & 0xff : undefined
+  return code !== undefined ? String.fromCodePoint(Math.min(code, 0x10ffff)) : ESCAPES[c!] ?? whole
+}
+/** The inside of a `$'...'` word: every C escape read, `\cX` a control character, and the word ends at a nul, as bash takes it. */
+const ansiC = (body: string) => {
+  let out = ''
+  let at = 0
+  while (at < body.length) {
+    const control = /^\\c([\s\S])/.exec(body.slice(at))
+    IN_FORMAT.lastIndex = at
+    const m = body[at] === '\\' && !control ? IN_FORMAT.exec(body) : null
+    const one = control ? String.fromCharCode(control[1]!.toUpperCase().charCodeAt(0) ^ 64) : m ? escapeValue(m) : body[at]!
+    if (one === '\0') return out
+    out += one
+    at += (control ?? m)?.[0].length ?? 1
+  }
+  return out
+}
+/** Where the `'` closing a `$'...'` body that starts at `from` is, or the end of the text. */
+const ansiEnd = (text: string, from: number) => {
+  for (let i = from; i < text.length; i++) {
+    if (text[i] === '\\') i++
+    else if (text[i] === "'") return i
+  }
+  return text.length
+}
+/** A heredoc's end word as the shell compares it: quotes off, a backslash kept in single quotes and before anything it does not escape in double quotes. */
+const docEnd = (word: string) =>
+  word.replace(/\$'((?:[^'\\]|\\[\s\S])*)'|'([^']*)'|"((?:[^"\\]|\\[\s\S])*)"|\\([\s\S])/g, (_, ansi, single, double, bare) =>
+    ansi !== undefined ? ansiC(ansi) : single ?? bare ?? double.replace(/\\([$`"\\])/g, '$1'))
+
 /** A heredoc's place in a part: `<<` and this word, whose number is its body's in `docs`. */
 const docMark = (n: number) => `${n}`
 /** The body in `docs` that a redirect's word stands for. */
@@ -81,10 +118,10 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
       i = sum - 1
       continue
     }
-    const doc = c === '<' ? /^<<(-?)[ \t]*((?:'[^'\n]*'|"[^"\n]*"|\\.|[^\s'"\\<>;&|()])+)/.exec(command.slice(i)) : null
+    const doc = c === '<' ? /^<<(-?)[ \t]*((?:\$'(?:[^'\\\n]|\\.)*'|'[^'\n]*'|"[^"\n]*"|\\.|[^\s'"\\<>;&|()])+)/.exec(command.slice(i)) : null
     if (doc) {
       const n = docs.push('') - 1
-      waiting.push({ n, end: doc[2]!.replace(/['"\\]/g, ''), tabs: doc[1] === '-' })
+      waiting.push({ n, end: docEnd(doc[2]!), tabs: doc[1] === '-' })
       cur += `<<${docMark(n)}`
       i += doc[0].length - 1
       continue
@@ -150,7 +187,7 @@ const substitutionEnd = (part: string, from: number) => {
 
 /**
  * The words of one part of a command, as the shell reads them: pieces that touch with no space
- * between (`s/'a b'/"c"/`) are one word, quotes removed (`$'...'` with its C escapes read, `$(...)` kept whole); `\ `
+ * between (`s/'a b'/"c"/`) are one word, quotes removed (`$'...'` read by ansiC, `$(...)` kept whole); `\ `
  * outside quotes is a space in the word; a `|`, `(` or `)` outside quotes is a word of its own (`pipe`), and so
  * is a redirect (`redirect`: `>>`, `2>`, `&>`, its file the next word). `quoted` says the word began
  * with a quote (then it is never an option). Outside quotes a backslash is dropped only before a space, a
@@ -206,14 +243,10 @@ export const shellWords = (part: string): Word[] => {
       expands = true
       i = end
     } else if (c === '$' && part[i + 1] === "'") {
-      // `$'...'`: quoted, with C escapes (`\n`, `\t`, `\'`, `\\`); any other backslash stays as written.
-      const esc: Record<string, string> = { n: '\n', t: '\t', r: '\r', "'": "'", '\\': '\\', '"': '"' }
-      for (i += 2; i < part.length && part[i] !== "'"; i++) {
-        if (part[i] === '\\' && i + 1 < part.length) {
-          const n = part[++i]!
-          text += esc[n] ?? `\\${n}`
-        } else text += part[i]
-      }
+      // `$'...'`: quoted, with its C escapes read.
+      const end = ansiEnd(part, i + 2)
+      text += ansiC(part.slice(i + 2, end))
+      i = end
     } else if (c === "'") {
       const end = part.indexOf("'", i + 1)
       const stop = end < 0 ? part.length : end

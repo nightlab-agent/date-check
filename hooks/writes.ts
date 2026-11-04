@@ -1,7 +1,7 @@
 // What a shell command writes: for each file it names, the text it sends there.
 
 import { commandIn, commandName, sedCommands, sedInPlace, shellParts, writtenText } from './sed'
-import { docOf, shellWords, stages, withoutRedirects } from './shell'
+import { docOf, ESCAPE, escapeValue, IN_FORMAT, shellWords, stages, withoutRedirects } from './shell'
 import type { Word } from './shell'
 
 /** Files whose stamps are judged: Markdown and plain text, logs, and changelog-like names. Code is not. */
@@ -9,23 +9,16 @@ export const isText = (path: string) =>
   /\.(?:md|markdown|mdx|txt|text|rst|adoc|asciidoc|org|log)$/i.test(path) ||
   /(?:^|[/\\])(?:CHANGELOG|CHANGES|HISTORY|NEWS|RELEASES?|NOTES)$/i.test(path)
 
-/** The named backslash escapes of a `printf` format or `%b` argument. */
-const ESCAPES: Record<string, string> = { a: '\x07', b: '\b', e: '\x1b', E: '\x1b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v', '\\': '\\', '"': '"', "'": "'", '?': '?' }
-/** One backslash escape: hex, the two unicode forms, octal, or a single character. `%b` reads a `\\0` and up to three more octal digits, a format three in all. */
-const ESCAPE = (octal: string) => new RegExp(`\\\\(?:x([\\da-fA-F]{1,2})|u([\\da-fA-F]{1,4})|U([\\da-fA-F]{1,8})|(${octal})|([\\s\\S]))`, 'g')
-const IN_FORMAT = ESCAPE('[0-7]{1,3}')
+/** `%b` reads an octal escape with or without its leading 0 (up to three more digits after a 0), `echo -e` only with it; a format reads three digits in all. */
 const IN_ARGUMENT = ESCAPE('0[0-7]{0,3}|[1-7][0-7]{0,2}')
+const IN_ECHO = ESCAPE('0[0-7]{0,3}')
 
-const escapeValue = ([whole, hex, short, long, octal, c]: RegExpMatchArray) => {
-  const code = hex ?? short ?? long ? parseInt((hex ?? short ?? long)!, 16) : octal ? parseInt(octal, 8) & 0xff : undefined
-  return code !== undefined ? String.fromCodePoint(Math.min(code, 0x10ffff)) : ESCAPES[c!] ?? whole
-}
-
-/** `text` with its escapes worked out; in a `%b` argument (`stops`) a `\c` ends everything printf prints, which `ended` says. */
-const unescaped = (text: string, stops = false) => {
+/** `text` with its escapes worked out; in a `%b` argument or an `echo -e`, a `\c` ends everything printed, which `ended` says. */
+const unescaped = (text: string, reading = IN_FORMAT) => {
+  const stops = reading !== IN_FORMAT
   let out = ''
   let at = 0
-  for (const m of text.matchAll(stops ? IN_ARGUMENT : IN_FORMAT)) {
+  for (const m of text.matchAll(reading)) {
     out += text.slice(at, m.index)
     at = m.index + m[0].length
     if (stops && m[5] === 'c') return { text: out, ended: true }
@@ -113,7 +106,7 @@ const formatted = (format: Word | undefined, args: string[]) => {
         if (/^[A-Za-z_]\w*$/.test(arg)) continue
         return false
       }
-      const b = kind === 'b' ? unescaped(arg, true) : undefined
+      const b = kind === 'b' ? unescaped(arg, IN_ARGUMENT) : undefined
       out += shown(size < 0 ? `${flags}-` : flags, Math.min(Math.abs(size), WIDEST), cut, kind, b?.text ?? arg)
       if (b?.ended) return false
     }
@@ -126,34 +119,35 @@ const formatted = (format: Word | undefined, args: string[]) => {
   return next === 0 && format.expands ? [out, ...args].join('\n') : out
 }
 
-/**
- * The text an `echo` or `printf` prints, quoted or not: an `echo`'s words as one line after its
- * flags, whose escapes count only when `-e` comes last of `-e` and `-E`, and a `printf` as its
- * format makes it (formatted).
- */
-const printed = ([command, ...args]: Word[]) => {
-  const echo = commandName(command!) === 'echo'
+/** What an `echo` prints and whether it ends its line: the shell takes quotes off before echo reads its flags; escapes count when `-e` comes last of `-e` and `-E`, and `-n` or a read `\c` ends no line. */
+const echoed = (args: Word[]) => {
   const words = withoutRedirects(args)
-  // The shell takes the quotes off before printf reads its `--`; an echo flag in quotes is the same, but stays text here.
-  const first = words.findIndex(w => (echo && w.quoted) || !(echo ? /^-[neE]+$/ : /^--$/).test(w.text))
+  const first = words.findIndex(w => !/^-[neE]+$/.test(w.text))
+  const flags = words.slice(0, first < 0 ? words.length : first).flatMap(w => [...w.text])
+  const text = (first < 0 ? [] : words.slice(first)).map(w => w.text).join(' ')
+  const read = flags.findLast(c => /[eE]/.test(c)) === 'e' ? unescaped(text, IN_ECHO) : { text, ended: false }
+  return { text: read.text, openLine: flags.includes('n') || read.ended }
+}
+
+/** The text an `echo` or `printf` prints, quoted or not; a `printf` as its format makes it (formatted). */
+const printed = ([command, ...args]: Word[]) => {
+  if (commandName(command!) === 'echo') return echoed(args).text
+  const words = withoutRedirects(args)
+  // The shell takes the quotes off before printf reads its `--`.
+  const first = words.findIndex(w => w.text !== '--')
   const said = first < 0 ? [] : words.slice(first)
-  if (echo) {
-    const text = said.map(w => w.text).join(' ')
-    const flags = words.slice(0, first < 0 ? words.length : first).flatMap(w => [...w.text])
-    return flags.findLast(c => /[eE]/.test(c)) === 'e' ? unescaped(text, true).text : text
-  }
   return formatted(said[0], said.slice(1).map(w => w.text))
 }
 
 /** The file a `xargs sed -i` writes, which the pipe names when it runs: judged as a text file not read. */
 export const PIPED = '(files from xargs).txt'
 
-/** A `printf` or `echo -n` adds no new line of its own: the next write to the file goes on the same line. */
+/** A `printf`, `echo -n` or an echo stopped by `\c` adds no new line of its own: the next write to the file goes on the same line. */
 const printsNoNewline = (stage: Word[]) => {
   const words = commandIn(stage)?.words ?? []
   if (!words[0]) return false
   const name = commandName(words[0])
-  return name === 'printf' || (name === 'echo' && withoutRedirects(words.slice(1)).some(w => !w.quoted && /^-[eE]*n[neE]*$/.test(w.text)))
+  return name === 'printf' || (name === 'echo' && echoed(words.slice(1)).openLine)
 }
 
 /** One write a shell command makes: the file, whether the shell works its name out as it runs, the text, and for a sed -i its scripts. */

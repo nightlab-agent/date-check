@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- A heredoc's end word is read as the shell reads it: `<<'E\F'` keeps its backslash, `<<$'E\tF'` reads its escapes, so the commands after it are judged.
+- `$'...'` reads every C escape (`\x32`, octal, `\cJ`) and ends at a nul, so a date spelled that way in a here-string or a word is judged.
+- `echo` takes `'-e'` in quotes as the flag it is, keeps `\12` as written (only `\012` is octal there), and stays on its line after `-n` in quotes or a `\c`; a `-n` after the text is text.
 - One file spelled two ways counts as one: a `sed -i` on `./notes.md` after a write to `notes.md` in the same command is judged, also `a/./notes.md` and `a//notes.md`. Before, it read as a missing file and its date was missed.
 - `echo` reads escapes only when `-e` is the last of `-e` and `-E`, as bash does, so `echo 'a\n2027-01-15'` opens no new line and is no longer refused. `echo -e` reads every escape, not only `\n`.
 - A heredoc with no exact end line runs to the end of the command, as bash takes it, so its date is judged; `EOF ` with a space after it is no end line. A here-string (`cat <<< "text" >> notes.md`) is read too. tests/review-ts-0.1.7.test.tsx fails on 3 cases without this. Not seen on a screen.
