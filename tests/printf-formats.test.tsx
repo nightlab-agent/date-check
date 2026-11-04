@@ -1,0 +1,32 @@
+import { L, passes, refuses } from './shell-world'
+
+// A printf writes what its format makes of its arguments, as bash prints it.
+const refused = (name: string, command: string) => refuses(name, command, {}, '2027-01-15')
+
+refused('comparison: a date printed alone on its line', `printf '%s\\n' '2027-01-15' >> notes.md`)
+refused('comparison: a stamp written in the format', `printf '- 2027-01-15 deploy\\n' >> notes.md`)
+refuses('comparison: a whole stamp as the argument', `printf '%s\\n' '${L}' >> notes.md`, {}, '18:30')
+refuses('comparison: a whole stamp after -- ', `printf -- '%s\\n' '${L}' >> notes.md`, {}, '18:30')
+refused('comparison: an argument down a pipe', `printf '%s\\n' '2027-01-15' | tee notes.md`)
+refused('a format with no directive repeats nothing and keeps its own text', `printf '2027-01-15\\n' ok >> notes.md`)
+refused('the format is used again for each argument', `printf 'a %s\\n%s\\n' x 2027-01-15 >> notes.md`)
+refused('the format runs again until the arguments end', `printf '%s\\n' x 2027-01-15 >> notes.md`)
+refuses('a stamp cut over two arguments is whole in the text', `printf '%s %s deploy\\n' '- 2026-10-31' '18:30' >> notes.md`, {}, '18:30')
+refused('a format that opens a line with the argument', `printf '%s deploy\\n' 2027-01-15 >> notes.md`)
+refused('a list line made by the format', `printf -- '- %s deploy\\n' 2027-01-15 >> notes.md`)
+refused('numbers padded into a date', `printf '%d-%02d-%02d\\n' 2027 1 15 >> notes.md`)
+refused('a padded string opens the line', `printf '%-12s deploy\\n' 2027-01-15 >> notes.md`)
+refused('a %b argument makes its own line', `printf '%b' 'x\\n2027-01-15\\n' >> notes.md`)
+refused('a format that is worked out as it runs leaves the arguments alone on a line', `printf "$FORMAT" 2027-01-15 >> notes.md`)
+
+passes('an argument inside a sentence', `printf 'Planned for %s.\\n' 2027-01-15 >> notes.md`)
+passes('an argument inside a sentence, padded', `printf 'Planned for %12s.\\n' 2027-01-15 >> notes.md`)
+passes('two arguments inside sentences', `printf 'From %s to %s.\\n' 2027-01-15 2027-02-01 >> notes.md`)
+passes('the format used again keeps each argument in a sentence', `printf 'Planned for %s.\\n' 2027-01-15 2027-02-01 >> notes.md`)
+passes('an argument a format with no directive never prints', `printf 'done\\n' 2027-01-15 >> notes.md`)
+passes('a %% takes no argument', `printf '100%% by %s.\\n' 2027-01-15 >> notes.md`)
+passes('a precision cuts the date off', `printf '%.4s\\n' 2027-01-15 >> notes.md`)
+passes('a %c prints one character', `printf '%c\\n' 2027-01-15 >> notes.md`)
+passes('a %s argument keeps its backslash n', `printf '%s\\n' 'x\\n2027-01-15' >> notes.md`)
+passes('a clock format takes the clock from the argument', `printf 'At %(%F)T for %s.\\n' -1 2027-01-15 >> notes.md`)
+passes('a format with a variable in it still holds its argument', `printf "Planned by $WHO for %s.\\n" 2027-01-15 >> notes.md`)

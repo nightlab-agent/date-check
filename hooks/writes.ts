@@ -9,16 +9,56 @@ export const isText = (path: string) =>
   /\.(?:md|markdown|mdx|txt|text|rst|adoc|asciidoc|org|log)$/i.test(path) ||
   /(?:^|[/\\])(?:CHANGELOG|CHANGES|HISTORY|NEWS|RELEASES?|NOTES)$/i.test(path)
 
+/** The backslash escapes of a `printf` format or `%b` argument that can matter to a stamp. */
+const ESCAPES: Record<string, string> = { n: '\n', t: '\t', r: '\r', '\\': '\\', '"': '"', "'": "'" }
+const unescaped = (text: string) => text.replace(/\\(.)/g, (m, c: string) => ESCAPES[c] ?? m)
+
+/** A `printf` directive: flags, width, precision and kind, with `%(...)T`, which prints the clock. Used only with `replace`. */
+const DIRECTIVE = /%(?:\([^)]*\))?([-+ 0#]*)(\d*)(?:\.(\d*))?([diouxXeEfFgGaAcsbqT%])/g
+
+/** One argument as its directive prints it: `%s`, `%b`, `%c` and whole numbers as bash does, other kinds as written. */
+const shown = (flags: string, width: string, precision: string | undefined, kind: string, arg: string) => {
+  const digits = /[diu]/.test(kind) && /^\d*$/.test(arg)
+  const text = kind === 'b' ? unescaped(arg) : arg
+  const body = digits ? (arg || '0').padStart(Number(precision ?? 0), '0')
+    : kind === 'c' ? text.slice(0, 1)
+    : /[sb]/.test(kind) && precision !== undefined ? text.slice(0, Number(precision))
+    : text
+  if (flags.includes('-')) return body.padEnd(Number(width))
+  return body.padStart(Number(width), digits && flags.includes('0') ? '0' : ' ')
+}
+
+/**
+ * What a `printf` prints: its format filled from the arguments, and used again while arguments
+ * are left. A format the shell works out as it runs (`"$FORMAT"`) with no directive in sight can put
+ * its arguments anywhere: each is read alone on a line, so a stamp among them is still judged.
+ */
+const formatted = (format: Word | undefined, args: string[]) => {
+  if (!format) return ''
+  const template = unescaped(format.text)
+  let next = 0
+  let out = ''
+  let from: number
+  do {
+    from = next
+    out += template.replace(DIRECTIVE, (_, flags: string, width: string, precision: string | undefined, kind: string) =>
+      kind === '%' ? '%' : shown(flags, width, precision, kind, args[next++] ?? ''))
+  } while (next > from && next < args.length)
+  return next === 0 && format.expands ? [out, ...args].join('\n') : out
+}
+
 /**
  * The text an `echo` or `printf` prints, quoted or not: an `echo`'s words as one line after its
- * flags, a `printf`'s format and arguments as a line each (the format decides what goes where).
- * A written `\\n` is a new line, as `echo -e` and `printf` make it.
+ * flags, where a written `\\n` is a new line as `echo -e` makes it, and a `printf` as its format
+ * makes it (formatted).
  */
 const printed = ([command, ...args]: Word[]) => {
   const echo = commandName(command!) === 'echo'
   const words = withoutRedirects(args)
   const first = words.findIndex(w => w.quoted || !(echo ? /^-[neE]+$/ : /^--$/).test(w.text))
-  return (first < 0 ? [] : words.slice(first)).map(w => w.text).join(echo ? ' ' : '\n').replace(/\\n/g, '\n')
+  const said = first < 0 ? [] : words.slice(first)
+  if (echo) return said.map(w => w.text).join(' ').replace(/\\n/g, '\n')
+  return formatted(said[0], said.slice(1).map(w => w.text))
 }
 
 /** The file a `xargs sed -i` writes, which the pipe names when it runs: judged as a text file not read. */

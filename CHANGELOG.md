@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A `printf` is judged on what its format prints (`printf 'Planned for %s.\n' 2027-01-15` is a
+  sentence): `%s`, `%b`, `%c`, whole numbers with their width and padding, `%%`, and the format
+  used again while arguments are left. Before, each argument counted as a line of its own, so
+  that sentence was refused, and a date built from numbers was missed. A format the shell works
+  out as it runs still leaves each argument alone on a line. tests/printf-formats.test.tsx fails
+  on 13 cases without this. Not seen on a screen.
 - A file down a pipeline is judged on the text that reaches it. Text a command sends elsewhere
   (`echo ... > out.dat | tee notes.md`, also `&>`, `>&2`, `/dev/null` or a redirect on a subshell)
   stops there, a file before the command gets none of it, and a later `echo` or heredoc is its own
