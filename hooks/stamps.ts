@@ -21,6 +21,8 @@ export type Stamp = {
   offset?: number
   /** A zone name written after the time (`EST`, `UTC`), when it carries one. */
   zone?: string
+  /** The offset may be the end of a range (`10:00-11:30`): the time is then local too. */
+  range?: boolean
 }
 
 export type Verdict = { stamp: Stamp; kind: 'future' | 'stale'; real: string }
@@ -81,7 +83,11 @@ const build = (m: RegExpExecArray, at: number, line: string, where: Stamp['where
   if (minutes !== undefined && (Number(hh) > 23 || Number(mm) > 59)) return undefined
   const date = `${m[at]}-${m[at + 1]}-${m[at + 2]}`
   const text = m[0].slice(m[0].indexOf(date)).replace(/[\])"'\x60*]+$/, '').trim()
-  return { text, line: shortLine(line), where, date, ...(minutes !== undefined ? { minutes } : {}), ...zoneOf(m[at + 5]) }
+  // `2026-10-31 10:00-11:30` reads as a time and offset, or as a range if the end is after the
+  // start. With `T` or seconds it is the first: that is how a clock prints a time.
+  const end = / \d\d:\d\d\s?-(\d\d):(\d\d)$/.exec(m[0])
+  const range = end && minutes! < Number(end[1]) * 60 + Number(end[2]) ? { range: true } : {}
+  return { text, line: shortLine(line), where, date, ...(minutes !== undefined ? { minutes } : {}), ...zoneOf(m[at + 5]), ...range }
 }
 
 const zoneOf = (written: string | undefined) => {
@@ -282,14 +288,14 @@ export type ZoneAt = (ms: number) => number
 const localZone: ZoneAt = ms => -new Date(ms).getTimezoneOffset()
 
 /**
- * The moments a stamp can name, in ms: one for an offset; one per reading of a zone name; and
- * for a local time, both when it falls in the hour the clocks go back over (01:30 happens twice
- * that night in New York), one otherwise.
+ * The moments a stamp can name, in ms: one for an offset; one per reading of a zone name; for a
+ * local time, both when it falls in the hour the clocks go back over (01:30 happens twice that
+ * night in New York), one otherwise; and for what may be a range, the offset and the local time.
  */
 const momentsOf = (s: Stamp, zoneAt: ZoneAt) => {
   const [y, m, d] = s.date.split('-').map(Number) as [number, number, number]
   const wall = Date.UTC(y, m - 1, d, 0, s.minutes ?? 0)
-  if (s.offset !== undefined) return [wall - s.offset * 60000]
+  if (s.offset !== undefined && !s.range) return [wall - s.offset * 60000]
   if (s.zone) {
     // "EST" is often written for Eastern time all year: in summer it can also mean EDT.
     const loose = /^[ECMP]ST$/.test(s.zone) && usDaylight(s.date) ? [ZONES[s.zone]![0]! + 60] : []
@@ -297,7 +303,7 @@ const momentsOf = (s: Stamp, zoneAt: ZoneAt) => {
   }
   const offsets = [...new Set([zoneAt(wall - 12 * 3600000), zoneAt(wall + 12 * 3600000)])]
   const fits = offsets.filter(o => zoneAt(wall - o * 60000) === o)
-  return (fits.length ? fits : offsets.slice(0, 1)).map(o => wall - o * 60000)
+  return [...(s.offset !== undefined ? [s.offset] : []), ...(fits.length ? fits : offsets.slice(0, 1))].map(o => wall - o * 60000)
 }
 
 export type Limits = { aheadMinutes: number; staleMinutes: number; staleDays: number }

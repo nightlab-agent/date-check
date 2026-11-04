@@ -47,6 +47,10 @@
 - A line cut to 120 units for a refusal no longer splits an emoji in two, so the refusal
   Claude reads is well formed text. tests/long-lines.test.tsx fails on 3 cases without this.
   Not seen on a screen.
+- A dated time range (`- 2026-10-31 10:00-11:30 standup`) is no longer read as a time with the
+  offset -11:30 and refused as future. When the end is after the start, the text is judged
+  both ways and called wrong only if wrong under both; a time with `T` or seconds keeps its
+  offset. tests/time-ranges.test.tsx fails on 5 cases without this. Not seen on a screen.
 
 ## 0.1.6 (2026-11-03)
 
