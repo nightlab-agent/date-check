@@ -47,8 +47,8 @@ const readAt = async ($: EngineInterface, file: string) => {
 }
 
 /** One file's text before and after a shell command's writes to it; undefined when it cannot be read or applied. */
-async function applied($: EngineInterface, file: string, writes: ShellWrite[]) {
-  const before = await readAt($, file)
+async function applied($: EngineInterface, file: string, writes: ShellWrite[], exists: boolean) {
+  const before = exists ? await readAt($, file) : ''
   if (before === undefined) return undefined
   let after: string | undefined = before
   for (const w of writes) {
@@ -125,12 +125,15 @@ async function changes($: EngineInterface, x: Call): Promise<Change[]> {
       const sure = !file.startsWith('~') && !unexpanded(file) && !moved && file !== PIPED
       let ws = all.filter(v => v.file === file)
       const exists = sure ? await existsAt($, file) : undefined
-      // sed -i edits only files that exist: on a missing one it writes nothing there (and goes on to the next).
-      if (exists === false) ws = ws.filter(v => !v.sed)
+      // sed -i edits only files that exist: on a missing one it writes nothing there (and goes on to
+      // the next) until a write of this command has made it.
+      const made = ws.findIndex(v => !v.sed)
+      if (exists === false) ws = made < 0 ? [] : ws.slice(made)
       if (!ws.length) continue
-      // A file that exists: its text after the command (substitutions, then what an echo adds), judged as an Edit is.
-      const r = exists ? await applied($, file, ws) : undefined
-      out.push(r ?? { file, before: '', after: ws.map(v => v.text).join('\n'), created: exists === false })
+      // A file that exists or is made here: its text after the command's writes in order, judged as an Edit is.
+      const r = exists === undefined ? undefined : await applied($, file, ws, exists)
+      const created = exists === false
+      out.push(r ? { ...r, created } : { file, before: '', after: ws.map(v => v.text).join('\n'), created })
     }
     return out
   }

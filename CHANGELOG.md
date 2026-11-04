@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A `sed -i` on a file the same command made earlier is judged on what it leaves there
+  (`echo "- TBD" > n.md; sed -i 's/TBD/.../' n.md`). Before, it counted as an edit of a missing
+  file and was dropped. tests/files-made-in-a-command.test.tsx fails on 4 cases without this. Not
+  seen on a screen.
 - A heredoc is read wherever its command stands: behind `then`, `do`, `else`, `elif`, `(`, `{`,
   `!`, a variable, `env` or another wrapper, with `<<-` (tabs taken off) or `<<\EOF`, and in
   command order among the other writes of the command. A heredoc for another program no longer
