@@ -1,5 +1,5 @@
 import type { EngineInterface, Register } from 'claude-code'
-import { clockText, dateOfFile, dayOf, fillNow, gapText, judge, judgeName, LIMITS, newStamps, unfill } from './stamps'
+import { clockText, dateOfFile, dayOf, fillEdit, fillNow, gapText, judge, judgeName, LIMITS, newStamps, unfill } from './stamps'
 import type { Limits, Verdict } from './stamps'
 import { applySed } from './sed'
 import { isText, PIPED, shellWrites } from './writes'
@@ -162,18 +162,22 @@ export const clockLine = (now: number, since?: number, fill = true) =>
   (fill ? ' To record the moment a file is written, write ⟦NOW⟧ (date and time), ⟦DATE⟧ (also in a file name) or ⟦TIME⟧: the clock fills it in as the write lands.' : '')
 
 /** The call with its placeholders filled from the clock (the text it writes, and a Write's or Edit's file path), and which ones were. */
-const filledCall = (x: Call, now: number): { call: Call; filled: string[] } => {
+const filledCall = async ($: EngineInterface, x: Call, now: number): Promise<{ call: Call; filled: string[] }> => {
   const key = x.tool === 'Write' ? 'content' : x.tool === 'Edit' ? 'new_string' : 'command'
   const call: Call = { ...x }
   const filled = new Set<string>()
-  const v = x[key]
-  if (typeof v === 'string' && v.includes('⟦')) {
-    const f = fillNow(v, now, x.tool !== 'Bash')
-    if (f.filled.length) { call[key] = f.text; f.filled.forEach(t => filled.add(t)) }
-  }
   if (x.tool !== 'Bash' && x.file_path?.includes('⟦')) {
     const f = fillNow(x.file_path, now, false)
     if (f.filled.length) { call.file_path = f.text; f.filled.forEach(t => filled.add(t)) }
+  }
+  const v = x[key]
+  if (typeof v === 'string' && v.includes('⟦')) {
+    // An Edit lands inside a file: what it lands in decides. Its old text not there, it is read alone.
+    const path = call.file_path
+    const old = x.tool === 'Edit' ? x.old_string : undefined
+    const file = old && path && (await existsAt($, path)) ? await readAt($, path) : undefined
+    const f = old && file?.includes(old) ? fillEdit(file, old, v, now) : fillNow(v, now, x.tool !== 'Bash')
+    if (f.filled.length) { call[key] = f.text; f.filled.forEach(t => filled.add(t)) }
   }
   return filled.size ? { call, filled: [...filled] } : { call: x, filled: [] }
 }
@@ -230,7 +234,7 @@ export const register: Register = (on, options: Options = {}) => {
     let filled: string[] = []
     if (fill) {
       try {
-        const f = filledCall(x, await $.clock.now())
+        const f = await filledCall($, x, await $.clock.now())
         x = f.call
         filled = f.filled
       } catch {

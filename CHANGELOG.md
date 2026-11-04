@@ -56,6 +56,10 @@
   ```` opens none. Before, the judge toggled on any ``` or ~~~ line, so a stamp after such a
   line could go unjudged and a sample inside a fence could be refused.
   tests/code-fences.test.tsx fails on 6 cases without this. Not seen on a screen.
+- A placeholder in an Edit is read where it lands in the file, so one that lands in a code
+  block, a code span or an indented code line of the file is kept as written, as the README
+  says. Before, only the new text was read. tests/fill-edit.test.tsx fails on 3 cases without
+  this. Not seen on a screen.
 
 ## 0.1.6 (2026-11-03)
 

@@ -230,10 +230,11 @@ export const nowText = (ms: number) => {
  * lands: `⟦NOW⟧` 2026-11-01 06:20, `⟦DATE⟧` 2026-11-01, `⟦TIME⟧` 06:20, `⟦NOW-ISO⟧`
  * 2026-11-01T06:20:41-05:00, all local. One in code is kept as written (a README that shows
  * the placeholder): a code span, a ``` or ~~~ fence (fences), and, in a file (`indented`), an indented code line, as the judge reads code.
+ * `only` fills just that span of the text.
  * Exactly these spellings: `⟦now⟧`, `[NOW]` and `⟦NOW ⟧` are text. ⟦NOW⟧ has a space in
  * it: in a file name or an unquoted shell word, ⟦DATE⟧ is the one to use.
  */
-export const fillNow = (text: string, ms: number, indented = true): { text: string; filled: string[] } => {
+export const fillNow = (text: string, ms: number, indented = true, only?: [number, number]): { text: string; filled: string[] } => {
   const d = new Date(ms)
   const o = -d.getTimezoneOffset()
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
@@ -242,15 +243,31 @@ export const fillNow = (text: string, ms: number, indented = true): { text: stri
   const filled = new Set<string>()
   const all = text.split('\n')
   const inFence = fences(all)
+  let start = 0
   const lines = all.map((line, i) => {
+    const at = start
+    start += line.length + 1
     if (inFence[i]!.code || (indented && indentedCode(line))) return line
-    return line.replace(/(?<!`)(`+)(?!`)[^]*?(?<!`)\1(?!`)|⟦(NOW-ISO|NOW|DATE|TIME)⟧/g, (m, code: string | undefined, tok: string | undefined) => {
+    return line.replace(/(?<!`)(`+)(?!`)[^]*?(?<!`)\1(?!`)|⟦(NOW-ISO|NOW|DATE|TIME)⟧/g, (m, code: string | undefined, tok: string | undefined, off: number) => {
       if (code !== undefined || !tok) return m
+      if (only && (at + off < only[0] || at + off >= only[1])) return m
       filled.add(`⟦${tok}⟧ ${value[tok]}`)
       return value[tok]!
     })
   })
   return { text: lines.join('\n'), filled: [...filled] }
+}
+
+/**
+ * An Edit's new text filled where it lands in the file, so one that lands in a fence or a code span
+ * of the file is kept. The file's other lines are read and left as they are. With `replace_all` it
+ * is the first place that decides, the one text going to every place.
+ */
+export const fillEdit = (file: string, old: string, text: string, ms: number) => {
+  const at = file.indexOf(old)
+  const tail = file.length - at - old.length
+  const f = fillNow(file.slice(0, at) + text + file.slice(at + old.length), ms, true, [at, at + text.length])
+  return { text: f.text.slice(at, f.text.length - tail), filled: f.filled }
 }
 
 /** A line as written before filling: each filled value back to its placeholder, longest first. */
