@@ -67,6 +67,12 @@ const usDaylight = (date: string) => {
   return (m > 3 || (m === 3 && d >= sunday(2, 2))) && (m < 11 || (m === 11 && d < sunday(10, 1)))
 }
 
+/** A line for a message: trimmed, cut at 120 units, never through the middle of an emoji. */
+const shortLine = (line: string) => {
+  const cut = line.trim().slice(0, 120)
+  return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut
+}
+
 const build = (m: RegExpExecArray, at: number, line: string, where: Stamp['where']): Stamp | undefined => {
   const [y, mo, d] = [Number(m[at]), Number(m[at + 1]), Number(m[at + 2])]
   if (!valid(y, mo, d)) return undefined
@@ -75,7 +81,7 @@ const build = (m: RegExpExecArray, at: number, line: string, where: Stamp['where
   if (minutes !== undefined && (Number(hh) > 23 || Number(mm) > 59)) return undefined
   const date = `${m[at]}-${m[at + 1]}-${m[at + 2]}`
   const text = m[0].slice(m[0].indexOf(date)).replace(/[\])"'\x60*]+$/, '').trim()
-  return { text, line: line.trim().slice(0, 120), where, date, ...(minutes !== undefined ? { minutes } : {}), ...zoneOf(m[at + 5]) }
+  return { text, line: shortLine(line), where, date, ...(minutes !== undefined ? { minutes } : {}), ...zoneOf(m[at + 5]) }
 }
 
 const zoneOf = (written: string | undefined) => {
@@ -102,7 +108,7 @@ const lineStamp = (line: string, fileDate?: string): Stamp | undefined => {
   if ((m = field.exec(line))) return build(m, 1, line, 'field')
   if ((m = opening.exec(line))) return build(m, 1, line, 'line-start')
   if (fileDate && (m = timeOpening.exec(line)) && Number(m[1]) < 24 && Number(m[2]) < 60)
-    return { text: `${m[1]}:${m[2]}${m[3] ? ` ${m[3]}` : ''}`, line: line.trim().slice(0, 120), where: 'line-start', date: fileDate, minutes: Number(m[1]) * 60 + Number(m[2]), ...zoneOf(m[3]) }
+    return { text: `${m[1]}:${m[2]}${m[3] ? ` ${m[3]}` : ''}`, line: shortLine(line), where: 'line-start', date: fileDate, minutes: Number(m[1]) * 60 + Number(m[2]), ...zoneOf(m[3]) }
   return undefined
 }
 

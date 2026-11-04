@@ -44,6 +44,9 @@
   judging its other files. Before, one failed look dropped the judgment on the whole call.
   tests/failed-reads.test.tsx fails on 5 cases without this; the failures there are mocked,
   not a real large file or share. Not seen on a screen.
+- A line cut to 120 units for a refusal no longer splits an emoji in two, so the refusal
+  Claude reads is well formed text. tests/long-lines.test.tsx fails on 3 cases without this.
+  Not seen on a screen.
 
 ## 0.1.6 (2026-11-03)
 
