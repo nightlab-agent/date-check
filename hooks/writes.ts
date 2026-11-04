@@ -55,7 +55,8 @@ const formatted = (format: Word | undefined, args: string[]) => {
 const printed = ([command, ...args]: Word[]) => {
   const echo = commandName(command!) === 'echo'
   const words = withoutRedirects(args)
-  const first = words.findIndex(w => w.quoted || !(echo ? /^-[neE]+$/ : /^--$/).test(w.text))
+  // The shell takes the quotes off before printf reads its `--`; an echo flag in quotes is the same, but stays text here.
+  const first = words.findIndex(w => (echo && w.quoted) || !(echo ? /^-[neE]+$/ : /^--$/).test(w.text))
   const said = first < 0 ? [] : words.slice(first)
   if (echo) return said.map(w => w.text).join(' ').replace(/\\n/g, '\n')
   return formatted(said[0], said.slice(1).map(w => w.text))
@@ -64,14 +65,22 @@ const printed = ([command, ...args]: Word[]) => {
 /** The file a `xargs sed -i` writes, which the pipe names when it runs: judged as a text file not read. */
 export const PIPED = '(files from xargs).txt'
 
+/** A `printf` or `echo -n` adds no new line of its own: the next write to the file goes on the same line. */
+const printsNoNewline = (stage: Word[]) => {
+  const words = commandIn(stage)?.words ?? []
+  if (!words[0]) return false
+  const name = commandName(words[0])
+  return name === 'printf' || (name === 'echo' && withoutRedirects(words.slice(1)).some(w => !w.quoted && /^-[eE]*n[neE]*$/.test(w.text)))
+}
+
 /** One write a shell command makes: the file, whether the shell works its name out as it runs, the text, and for a sed -i its scripts. */
-export type ShellWrite = { file: string; expands?: boolean; text: string; sed?: { scripts: string[]; ere: boolean; z: boolean; scriptFile: boolean } }
+export type ShellWrite = { file: string; expands?: boolean; text: string; replaces?: boolean; joins?: boolean; sed?: { scripts: string[]; ere: boolean; z: boolean; scriptFile: boolean } }
 
 const named = (w: Word) => ({ file: w.text, ...(w.expands ? { expands: true } : {}) })
 
 /** The text a `cat` or `tee` gets on its input: the body of its last heredoc, as the shell gives it. */
 const heredocIn = (words: Word[], docs: string[]) => {
-  const at = words.findLastIndex(w => w.redirect && /^<<-?$/.test(w.text))
+  const at = words.findLastIndex(w => w.redirect && /^0?<<-?$/.test(w.text))
   return at < 0 ? undefined : docOf(words[at + 1]?.text, docs)
 }
 
@@ -90,7 +99,7 @@ const madeBy = (stage: Word[], docs: string[]) => {
  * at the first command that sends its output off the pipe, and before one that makes its own.
  */
 const outFiles = (pipeline: Word[][], docs: string[]) => {
-  const files: Word[] = []
+  const files: (Word & { replaces?: boolean })[] = []
   for (const [at, stage] of pipeline.entries()) {
     if (at > 0 && madeBy(stage, docs) !== undefined) break
     let offPipe = false
@@ -98,12 +107,13 @@ const outFiles = (pipeline: Word[][], docs: string[]) => {
       const to = stage[i + 1]
       if (!w.redirect || !to || !/^(?:1?>|&>)/.test(w.text)) continue
       const stream = w.text.endsWith('&') && /^(?:\d+-?|-)$/.test(to.text)
-      if (!stream) files.push(to)
+      if (!stream) files.push({ ...to, replaces: !w.text.includes('>>') })
       if (to.text !== (stream ? '1' : '/dev/stdout')) offPipe = true
     }
     const run = commandIn(stage)
     if (run && commandName(run.words[0]!) === 'tee')
-      files.push(...withoutRedirects(run.words.slice(1)).filter(w => w.quoted || !w.text.startsWith('-')))
+      files.push(...withoutRedirects(run.words.slice(1)).filter(w => w.quoted || !w.text.startsWith('-'))
+        .map(w => ({ ...w, replaces: !run.words.some(a => /^-[a-z]*a|^--append$/.test(a.text)) })))
     if (offPipe) break
   }
   return files.filter(f => f.text !== '/dev/null')
@@ -131,7 +141,10 @@ export const shellWrites = (command: string): ShellWrite[] => {
     const pipeline = stages(shellWords(part))
     for (const [at, stage] of pipeline.entries()) {
       const text = madeBy(stage, docs)
-      if (text !== undefined) for (const file of outFiles(pipeline.slice(at), docs)) out.push({ ...named(file), text })
+      if (text === undefined) continue
+      const joins = printsNoNewline(stage)
+      for (const file of outFiles(pipeline.slice(at), docs))
+        out.push({ ...named(file), text, ...(file.replaces ? { replaces: true } : {}), ...(joins ? { joins: true } : {}) })
     }
   }
   return out

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+- A file written in several steps is judged as the shell leaves it: a `printf` or `echo -n` runs on into the next write, and `>` drops what an earlier step wrote.
+- `cat 0<<EOF` is read as a heredoc, and a quoted `'--'` ends printf's options.
+- The npm package carries hooks/fences.ts.
+
 - A `printf` is judged on what its format prints (`printf 'Planned for %s.\n' 2027-01-15` is a
   sentence): `%s`, `%b`, `%c`, whole numbers with their width and padding, `%%`, and the format
   used again while arguments are left. Before, each argument counted as a line of its own, so
