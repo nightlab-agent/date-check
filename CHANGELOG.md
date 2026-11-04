@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- A redirect on another descriptor (`3</dev/null`) or a reopened `</dev/stdin` leaves a heredoc in place, so its date is judged. A line ending in an escaped `\|` does not run on into the next.
+- In `printf`, a `*` precision reads octal and hex and a negative one counts as none, a quoted argument (`"'A"`) is that character's number, `%#.0o` keeps its zero, `%.2b` and `%.2s` count bytes, and a number past 64 bits stops at the limit.
 - A file written in several steps is judged as the shell leaves it: a `printf` or `echo -n` runs on into the next write, and `>` drops what an earlier step wrote.
 - `cat 0<<EOF` is read as a heredoc, and a quoted `'--'` ends printf's options.
 - The npm package carries hooks/fences.ts.

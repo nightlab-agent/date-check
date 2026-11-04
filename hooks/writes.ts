@@ -37,33 +37,47 @@ const unescaped = (text: string, stops = false) => {
 /** A `printf` directive: flags, width, precision and kind, with `%(...)T`, which prints the clock. `%n` prints nothing and takes a variable's name; any other word stops printf. */
 const DIRECTIVE = /%(?:\([^)]*\))?([-+ 0#]*)(\d*|\*)(?:\.(\d*|\*))?([diouxXeEfFgGaAcsbqTn%])/g
 
-/** A whole number as `printf` reads it: decimal, `0x` hex or `0` octal, as far as it goes, so `2027x` is 2027 and `abc` is 0, each with an error bash prints elsewhere. */
+/** A whole number as `printf` reads it: decimal, `0x` hex or `0` octal, as far as it goes, so `2027x` is 2027 and `abc` is 0, each with an error bash prints elsewhere. A leading quote makes it the next character's number. */
 const integer = (arg: string) => {
+  if (/^['"]/.test(arg)) return BigInt(arg.codePointAt(1) ?? 0)
   const m = /^\s*([-+]?)(0[xX][\da-fA-F]+|0[0-7]*|[1-9]\d*)?/.exec(arg)!
   const digits = m[2] ?? '0'
   const value = BigInt(/^0[0-7]+$/.test(digits) ? `0o${digits.slice(1)}` : digits)
   return m[1] === '-' ? -value : value
 }
 
-/** A whole number as its directive prints it. A negative number in an unsigned kind wraps at 64 bits, as bash does. */
+const UNSIGNED_MAX = 2n ** 64n - 1n
+const SIGNED_MAX = 2n ** 63n - 1n
+
+/** Past what its kind holds, bash stops at the limit; a negative number in an unsigned kind wraps at 64 bits. */
+const inRange = (signed: boolean, value: bigint) => {
+  if (signed) return value > SIGNED_MAX ? SIGNED_MAX : value < -SIGNED_MAX - 1n ? -SIGNED_MAX - 1n : value
+  if (value > UNSIGNED_MAX || value < -UNSIGNED_MAX) return UNSIGNED_MAX
+  return value < 0n ? value + UNSIGNED_MAX + 1n : value
+}
+
+/** A whole number as its directive prints it. */
 const wholeNumber = (flags: string, width: number, precision: string | undefined, kind: string, value: bigint) => {
   const signed = /[di]/.test(kind)
-  const n = !signed && value < 0n ? value + 2n ** 64n : value
+  const n = inRange(signed, value)
   const size = n < 0n ? -n : n
   const text = size.toString(kind === 'o' ? 8 : /x/i.test(kind) ? 16 : 10)
   let digits = precision !== undefined && !Number(precision) && !size ? '' : text.padStart(Number(precision ?? 0), '0')
   if (kind === 'X') digits = digits.toUpperCase()
-  const prefix = !flags.includes('#') || !size ? '' : kind === 'o' ? (digits.startsWith('0') ? '' : '0') : /x/i.test(kind) ? `0${kind}` : ''
+  const prefix = !flags.includes('#') ? '' : kind === 'o' ? (digits.startsWith('0') ? '' : '0') : size && /x/i.test(kind) ? `0${kind}` : ''
   const sign = !signed ? '' : n < 0n ? '-' : flags.includes('+') ? '+' : flags.includes(' ') ? ' ' : ''
   const zeros = flags.includes('0') && !flags.includes('-') && precision === undefined
   return sign + prefix + (zeros ? digits.padStart(width - sign.length - prefix.length, '0') : digits)
 }
 
+/** The first `count` UTF-8 bytes of `text`, which is how a precision counts in `%s` and `%b`. */
+const firstBytes = (text: string, count: number) => new TextDecoder().decode(new TextEncoder().encode(text).slice(0, count))
+
 /** One argument as its directive prints it: `%s`, `%b`, `%c` and whole numbers as bash does, other kinds as written. */
 const shown = (flags: string, width: number, precision: string | undefined, kind: string, arg: string) => {
   const body = /[diouxX]/.test(kind) ? wholeNumber(flags, width, precision, kind, integer(arg))
     : kind === 'c' ? arg.slice(0, 1)
-    : /[sb]/.test(kind) && precision !== undefined ? arg.slice(0, Number(precision))
+    : /[sb]/.test(kind) && precision !== undefined ? firstBytes(arg, Number(precision))
     : arg
   return flags.includes('-') ? body.padEnd(width) : body.padStart(width)
 }
@@ -89,7 +103,9 @@ const formatted = (format: Word | undefined, args: string[]) => {
         continue
       }
       const size = width === '*' ? Number(integer(args[next++] ?? '')) : Number(width)
-      const cut = precision === '*' ? args[next++] ?? '0' : precision
+      // A negative `*` precision counts as no precision.
+      const star = precision === '*' ? integer(args[next++] ?? '') : undefined
+      const cut = star === undefined ? precision : star < 0n ? undefined : String(star)
       const arg = args[next++] ?? ''
       if (kind === 'n') {
         if (/^[A-Za-z_]\w*$/.test(arg)) continue
@@ -139,9 +155,9 @@ export type ShellWrite = { file: string; expands?: boolean; text: string; replac
 
 const named = (w: Word) => ({ file: w.text, ...(w.expands ? { expands: true } : {}) })
 
-/** The text a `cat` or `tee` gets on its input: the body of a heredoc, when that is the last input redirect, which is the one the shell keeps. */
+/** The text a `cat` or `tee` gets on its input: the body of a heredoc, when that is the last redirect of descriptor 0, which is the one the shell keeps; `</dev/stdin` reopens the same input. */
 const heredocIn = (words: Word[], docs: string[]) => {
-  const at = words.findLastIndex(w => w.redirect && /^\d*</.test(w.text))
+  const at = words.findLastIndex((w, i) => w.redirect && /^0?</.test(w.text) && words[i + 1]?.text !== '/dev/stdin')
   return at >= 0 && /^0?<<-?$/.test(words[at]!.text) ? docOf(words[at + 1]?.text, docs) : undefined
 }
 

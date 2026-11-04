@@ -105,8 +105,8 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
       waiting = []
       i = at - 1
     }
-    // A line that ends in a pipe goes on to the next.
-    if (c === '\n' && /\|\s*$/.test(cur)) continue
+    // A line that ends in a pipe goes on to the next; a `\\|` is text.
+    if (c === '\n' && /(?<!\\)(?:\\\\)*\|\s*$/.test(cur)) continue
     const two = command.slice(i, i + 2)
     if (two === '&&' || two === '||') {
       parts.push(cur)
