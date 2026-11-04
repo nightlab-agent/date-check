@@ -29,6 +29,9 @@
   missing file and the write was dropped. A file behind a variable no longer counts as new, so
   its name is not refused. tests/shell-unknown-paths.test.tsx fails on 5 cases without this.
   Not seen on a screen.
+- A `sed -i` script glued to its option (`-e's/a/b/'`, `-ne'...'`, `-Ee'...'`) is read.
+  Before, it was skipped as an unknown option. tests/sed-forms.test.tsx fails on 4 cases
+  without this. Not seen on a screen.
 
 ## 0.1.6 (2026-11-03)
 

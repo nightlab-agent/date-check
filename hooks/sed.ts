@@ -296,27 +296,35 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: 
       i++ // `2> err.txt`: the next word is the redirect's
       continue
     }
-    if (!t.quoted && /^-[a-zA-Z]/.test(t.text)) {
-      // GNU: what follows -i in one word is the backup suffix (`-iE` is -i with suffix "E", a basic pattern).
-      const flags = t.text.slice(1).split('i')[0]!
-      if (/[Er]/.test(flags)) ere = true
-      if (flags.includes('z')) z = true
-    }
-    if (!t.quoted && t.text === '--regexp-extended') ere = true
-    if (!t.quoted && t.text === '--null-data') z = true
-    if (!t.quoted && /^--expression=/.test(t.text)) {
-      // `--expression='s/a/b/'`: the script is glued, or is the quoted word that follows `=`.
-      const glued = t.text.slice('--expression='.length)
-      scripts.push(glued || (tokens[++i]?.text ?? ''))
+    if (t.quoted || !t.text.startsWith('-')) {
+      rest.push(t.text)
       continue
     }
-    if (!t.quoted && /^(?:-[a-zA-Z]*i|--in-place)/.test(t.text)) {
-      inPlace = true
-      if (t.text === '-i' && tokens[i + 1]?.quoted && tokens[i + 1]!.text === '') i++ // BSD: -i ''
-    } else if (!t.quoted && (t.text === '-e' || t.text === '--expression')) scripts.push(tokens[++i]?.text ?? '')
-    else if (!t.quoted && (t.text === '-f' || t.text === '--file')) return undefined // a script file: not read
-    else if (!t.quoted && t.text.startsWith('-')) continue
-    else rest.push(t.text)
+    if (/^-[a-zA-Z]/.test(t.text)) {
+      // One word can hold several short options. `e`, `f` and `l` take the rest of the word, or the
+      // next word, as their value; GNU: what follows `i` is the backup suffix (`-iE` is -i with
+      // suffix "E", a basic pattern).
+      for (let k = 1; k < t.text.length; k++) {
+        const o = t.text[k]!
+        if (o === 'E' || o === 'r') ere = true
+        else if (o === 'z') z = true
+        else if (o === 'i') {
+          inPlace = true
+          if (t.text === '-i' && tokens[i + 1]?.quoted && tokens[i + 1]!.text === '') i++ // BSD: -i ''
+          break
+        } else if ('efl'.includes(o)) {
+          const value = t.text.slice(k + 1) || (tokens[++i]?.text ?? '')
+          if (o === 'e') scripts.push(value)
+          if (o === 'f') return undefined // a script file: not read
+          break
+        }
+      }
+    } else if (t.text === '--regexp-extended') ere = true
+    else if (t.text === '--null-data') z = true
+    else if (t.text.startsWith('--expression=')) scripts.push(t.text.slice('--expression='.length))
+    else if (t.text === '--expression') scripts.push(tokens[++i]?.text ?? '')
+    else if (t.text.startsWith('--in-place')) inPlace = true
+    else if (t.text === '--file' || t.text.startsWith('--file=')) return undefined // a script file: not read
   }
   if (!inPlace) return undefined
   if (!scripts.length && rest.length) scripts.push(rest.shift()!)
