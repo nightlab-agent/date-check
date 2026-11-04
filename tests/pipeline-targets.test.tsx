@@ -1,0 +1,33 @@
+import { L, passes, refuses } from './shell-world'
+
+// A file down a pipeline gets a command's text only while that text stays on the pipe.
+const refused = (name: string, command: string) => refuses(name, command, {}, '18:30')
+
+refused('comparison: an echo down a pipe to tee', `echo '${L}' | tee notes.md`)
+refused('comparison: an echo down a pipe through cat', `echo '${L}' | cat > notes.md`)
+refused('comparison: a heredoc down a pipe to tee', `cat <<EOF | tee notes.md\n${L}\nEOF`)
+refused('comparison: errors sent away leave the text on the pipe', `echo '${L}' 2>/dev/null | tee notes.md`)
+refused('comparison: errors joined to the text leave it on the pipe', `echo '${L}' 2>&1 | tee notes.md`)
+refused('a redirect to the same stream leaves the text on the pipe', `echo '${L}' >&1 | tee notes.md`)
+refused('/dev/stdout leaves the text on the pipe', `echo '${L}' > /dev/stdout | tee notes.md`)
+refused('a tee passes the text on down the pipe', `echo '${L}' | tee out.dat | cat > notes.md`)
+refused('the redirect of the first command still gets the text', `echo '${L}' > notes.md | tee out.dat`)
+refused('a tee with its output sent away still writes its files', `echo '${L}' | tee notes.md > out.dat | cat > c.dat`)
+
+passes('text sent to a file does not reach a tee', `echo '${L}' > out.dat | tee notes.md`)
+passes('text appended to a file does not reach a tee', `echo '${L}' >> out.dat | tee notes.md`)
+passes('text sent to /dev/null does not reach a tee', `echo '${L}' > /dev/null | tee notes.md`)
+passes('text sent with &> does not reach a tee', `echo '${L}' &> out.dat | tee notes.md`)
+passes('text sent to errors does not reach a tee', `echo '${L}' >&2 | tee notes.md`)
+passes('text sent to errors does not come back through |&', `echo '${L}' >&2 |& tee notes.md`)
+passes('text sent to a file does not reach a tee through |&', `echo '${L}' > out.dat |& tee notes.md`)
+passes('a printf sent to a file does not reach a tee', `printf '${L}\\n' > out.dat | tee notes.md`)
+passes('a heredoc sent to a file does not reach a tee', `cat <<EOF > out.dat | tee notes.md\n${L}\nEOF`)
+passes('a redirect inside a subshell keeps the text from the tee', `(echo '${L}' > out.dat) | tee notes.md`)
+passes('a redirect after a subshell keeps the text from the tee', `(echo '${L}') > out.dat | tee notes.md`)
+passes('a tee sent to a file gives the next command nothing', `echo '${L}' | tee out.dat > c.dat | tee notes.md`)
+passes('a file before the writer gets none of its text', `ls > notes.md | echo '${L}'`)
+passes('an echo down the pipe prints its own words', `echo '${L}' | echo done > notes.md`)
+passes('a heredoc down the pipe is the input there', `echo '${L}' | cat <<EOF > notes.md\nok\nEOF`)
+refused('the second echo of a pipeline is judged', `echo done | echo '${L}' > notes.md`)
+refused('a heredoc after an echo in a pipeline is judged', `echo done | cat <<EOF > notes.md\n${L}\nEOF`)

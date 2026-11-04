@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A file down a pipeline is judged on the text that reaches it. Text a command sends elsewhere
+  (`echo ... > out.dat | tee notes.md`, also `&>`, `>&2`, `/dev/null` or a redirect on a subshell)
+  stops there, a file before the command gets none of it, and a later `echo` or heredoc is its own
+  text. Before, every file in the pipeline got the first command's text, so a later `echo` into a
+  file was not judged. tests/pipeline-targets.test.tsx fails on 17 cases without this. Not seen on
+  a screen.
 - A code fence inside a list item is code, as a Markdown reader shows it: indented under the item
   by spaces or a tab, on the marker's own line, or under a nested or numbered item. Before, a date
   in such a sample was refused, and a placeholder in one was filled. The fence ends with its item

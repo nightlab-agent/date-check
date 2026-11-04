@@ -10,26 +10,6 @@ export const isText = (path: string) =>
   /(?:^|[/\\])(?:CHANGELOG|CHANGES|HISTORY|NEWS|RELEASES?|NOTES)$/i.test(path)
 
 /**
- * The files a part of a command sends its output to, read from its words so a quoted `>` is text
- * and a quoted name is one name: each `>`, `>>`, `>|`, `&>`, `&>>` or `1>` (not `2>`, which sends
- * only errors, nor `>&2`, a stream), and every file a `tee` in the pipeline names.
- */
-const outFiles = (part: string) => {
-  const files: Word[] = []
-  for (const stage of stages(shellWords(part))) {
-    for (const [i, w] of stage.entries()) {
-      const to = stage[i + 1]
-      if (!w.redirect || !to || !/^(?:1?>|&>)/.test(w.text)) continue
-      if (!(w.text.endsWith('&') && /^(?:\d+-?|-)$/.test(to.text))) files.push(to)
-    }
-    const run = commandIn(stage)
-    if (run && commandName(run.words[0]!) === 'tee')
-      files.push(...withoutRedirects(run.words.slice(1)).filter(w => w.quoted || !w.text.startsWith('-')))
-  }
-  return files.filter(f => f.text !== '/dev/null')
-}
-
-/**
  * The text an `echo` or `printf` prints, quoted or not: an `echo`'s words as one line after its
  * flags, a `printf`'s format and arguments as a line each (the format decides what goes where).
  * A written `\\n` is a new line, as `echo -e` and `printf` make it.
@@ -55,10 +35,44 @@ const heredocIn = (words: Word[], docs: string[]) => {
   return at < 0 ? undefined : docOf(words[at + 1]?.text, docs)
 }
 
+/** The text a command of a pipeline makes itself: what an `echo` or `printf` prints, or a `cat` or `tee` heredoc. */
+const madeBy = (stage: Word[], docs: string[]) => {
+  const run = commandIn(stage)
+  if (!run) return undefined
+  const name = commandName(run.words[0]!)
+  return /^(?:echo|printf)$/.test(name) ? printed(run.words) : /^(?:cat|tee)$/.test(name) ? heredocIn(run.words, docs) : undefined
+}
+
+/**
+ * The files that get the text the first command of `pipeline` makes, read from its words so a quoted
+ * `>` is text and a quoted name is one name: each `>`, `>>`, `>|`, `&>`, `&>>` or `1>` (not `2>`, which
+ * sends only errors, nor `>&2`, a stream), and every file a `tee` further on names. The text stops
+ * at the first command that sends its output off the pipe, and before one that makes its own.
+ */
+const outFiles = (pipeline: Word[][], docs: string[]) => {
+  const files: Word[] = []
+  for (const [at, stage] of pipeline.entries()) {
+    if (at > 0 && madeBy(stage, docs) !== undefined) break
+    let offPipe = false
+    for (const [i, w] of stage.entries()) {
+      const to = stage[i + 1]
+      if (!w.redirect || !to || !/^(?:1?>|&>)/.test(w.text)) continue
+      const stream = w.text.endsWith('&') && /^(?:\d+-?|-)$/.test(to.text)
+      if (!stream) files.push(to)
+      if (to.text !== (stream ? '1' : '/dev/stdout')) offPipe = true
+    }
+    const run = commandIn(stage)
+    if (run && commandName(run.words[0]!) === 'tee')
+      files.push(...withoutRedirects(run.words.slice(1)).filter(w => w.quoted || !w.text.startsWith('-')))
+    if (offPipe) break
+  }
+  return files.filter(f => f.text !== '/dev/null')
+}
+
 /**
  * Every write in a shell command, in order: an `echo`, a `printf`, or a `cat` or `tee` with a heredoc
  * whose own part of the command (between `&&`, `||`, `;` and new lines, outside quotes) sends it to
- * a file (outFiles), and each file a `sed -i` edits.
+ * a file, down the pipeline as far as the text goes (outFiles), and each file a `sed -i` edits.
  */
 export const shellWrites = (command: string): ShellWrite[] => {
   const out: ShellWrite[] = []
@@ -74,14 +88,10 @@ export const shellWrites = (command: string): ShellWrite[] => {
       if (text && sed.piped && sed.source.some(isText)) out.push({ file: PIPED, text })
       continue
     }
-    for (const stage of stages(shellWords(part))) {
-      const run = commandIn(stage)
-      if (!run) continue
-      const name = commandName(run.words[0]!)
-      const text = /^(?:echo|printf)$/.test(name) ? printed(run.words) : /^(?:cat|tee)$/.test(name) ? heredocIn(run.words, docs) : undefined
-      if (text === undefined) continue
-      for (const file of outFiles(part)) out.push({ ...named(file), text })
-      break
+    const pipeline = stages(shellWords(part))
+    for (const [at, stage] of pipeline.entries()) {
+      const text = madeBy(stage, docs)
+      if (text !== undefined) for (const file of outFiles(pipeline.slice(at), docs)) out.push({ ...named(file), text })
     }
   }
   return out
