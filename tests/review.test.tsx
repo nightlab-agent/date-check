@@ -1,7 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 import { stampsIn } from '../hooks/stamps'
-import { shellWrite } from '../hooks/register'
 
 // The code review of 0.1.0 before its release (69f17c4): each finding as a test that failed there,
 // beside a comparison case. Same world as tests/date-check.test.tsx.
@@ -100,7 +99,6 @@ const commit = (trailer: string) =>
   `git commit -m "$(cat <<'EOF'\nPrepare 0.2.0\n\nRelease date: 2026-11-03\n\nCo-Authored-By: Claude${trailer}\nEOF\n)"`
 test('F4 (review): a git commit (no file written) with a planned release date is not refused', async ($, on) => {
   const w = world(on)
-  expect(shellWrite(commit(' <noreply@anthropic.com>'))).toBeUndefined()
   const r = await bash($, commit(' <noreply@anthropic.com>'))
   expect(r.deny).toBeUndefined()
   expect(w.ran).toEqual(['Bash'])

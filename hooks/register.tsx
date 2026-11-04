@@ -73,12 +73,6 @@ export const shellWrites = (command: string): ShellWrite[] => {
   return out
 }
 
-/** The one file a shell command is judged on: the first text file it writes (a log before code), else the first file. */
-const pick = (writes: ShellWrite[]) => {
-  const file = (writes.find(w => isText(w.file)) ?? writes[0])?.file
-  return file === undefined ? undefined : writes.filter(w => w.file === file)
-}
-
 /** One file's text before and after a shell command's writes to it; undefined when it cannot be read or applied. */
 async function applied($: EngineInterface, file: string, writes: ShellWrite[]) {
   if (file.startsWith('~') || !(await $.fs.exists(file))) return undefined
@@ -95,12 +89,6 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[]) {
     if (after === undefined) return undefined
   }
   return { file, before, after }
-}
-
-/** The file a shell command writes text to, and the text (every write to that file, in order). */
-export const shellWrite = (command: string): { file: string; text: string } | undefined => {
-  const ws = pick(shellWrites(command))
-  return ws && { file: ws[0]!.file, text: ws.map(w => w.text).join('\n') }
 }
 
 /** The directory changes in a shell command (`cd a`, `(pushd b`): after one, a relative path means no one place. */

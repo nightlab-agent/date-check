@@ -1,6 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
-import { shellWrite } from '../hooks/register'
 
 // Review of 98b3a48 (sed -i). Clock: 2026-10-31 16:01 local, as in date-check.test.tsx.
 type On = Parameters<TestBody>[1]
@@ -64,11 +63,13 @@ test('F2 comparison: the echo alone is refused', async ($, on) => {
 })
 
 // F3: one quoted script with `;` between commands is cut at the `;` before sedWrite sees it.
-test('F3: sed -i with two commands joined by ; in one script is read', () => {
-  expect(shellWrite("sed -i 's/a/b/; s/^- TBD/- 18:30/' log.md")).toEqual({ file: 'log.md', text: 'b\n- 18:30' })
+test('F3: sed -i with two commands joined by ; in one script is read', async ($, on) => {
+  world(on)
+  expect((await bash($, "sed -i 's/a/b/; s/^- TBD/- 2026-10-31 18:30/' ~/log.md")).deny).toContain('(in: - 2026-10-31 18:30)')
 })
-test('F3 comparison: the same two commands as two -e are read', () => {
-  expect(shellWrite("sed -i -e 's/a/b/' -e 's/^- TBD/- 18:30/' log.md")).toEqual({ file: 'log.md', text: 'b\n- 18:30' })
+test('F3 comparison: the same two commands as two -e are read', async ($, on) => {
+  world(on)
+  expect((await bash($, "sed -i -e 's/a/b/' -e 's/^- TBD/- 2026-10-31 18:30/' ~/log.md")).deny).toContain('(in: - 2026-10-31 18:30)')
 })
 
 // F4: several files: only the last is judged, so a code file last hides a log first.
@@ -82,30 +83,37 @@ test('F4 comparison: the log alone is refused', async ($, on) => {
 })
 
 // F5: a redirect after the file is taken as the file.
-test('F5: sed -i ... log.md 2>err.txt still names log.md', () => {
-  expect(shellWrite("sed -i 's/^- TBD/- 18:30/' log.md 2>err.txt")?.file).toBe('log.md')
+test('F5: sed -i ... log.md 2>err.txt still names log.md', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n' })
+  expect((await bash($, "sed -i 's/^- TBD/- 2026-10-31 18:30/' log.md 2>err.txt")).deny).toContain('18:30')
 })
-test('F5 comparison: without the redirect it names log.md', () => {
-  expect(shellWrite("sed -i 's/^- TBD/- 18:30/' log.md")?.file).toBe('log.md')
+test('F5 comparison: without the redirect it names log.md', async ($, on) => {
+  world(on, { 'log.md': '- TBD\n' })
+  expect((await bash($, "sed -i 's/^- TBD/- 2026-10-31 18:30/' log.md")).deny).toContain('18:30')
 })
 
 // F6: a back-reference glued to the stamp hides it (\1 then 18:30 reads as \118:30).
-test('F6: s with \\1 before the time still yields the time at the line start', () => {
-  expect(shellWrite("sed -i 's/^\\(- \\)TBD/\\118:30/' 2026-10-31.md")?.text).toMatch(/^- 18:30|^18:30/)
+test('F6: s with \\1 before the time still yields the time at the line start', async ($, on) => {
+  world(on)
+  expect((await bash($, "sed -i 's/^\\(- \\)TBD/\\118:30/' ~/2026-10-31.md")).deny).toContain('(in: 18:30)')
 })
-test('F6 comparison: the literal prefix form yields it', () => {
-  expect(shellWrite("sed -i 's/^- TBD/- 18:30/' 2026-10-31.md")?.text).toBe('- 18:30')
+test('F6 comparison: the literal prefix form yields it', async ($, on) => {
+  world(on)
+  expect((await bash($, "sed -i 's/^- TBD/- 18:30/' ~/2026-10-31.md")).deny).toContain('(in: - 18:30)')
 })
 
 // Look-alikes that must stay unread (these should all PASS).
-test('look-alikes left alone: grep -i, sed -n p, a word starting with sed, -i inside the script', () => {
-  expect(shellWrite("grep -i x log.md | sed 's/a/18:30/'")).toBeUndefined()
-  expect(shellWrite("sed -n -E '/x/p' log.md")).toBeUndefined()
-  expect(shellWrite("sedx -i 's/a/b 18:30/' log.md")).toBeUndefined()
-  expect(shellWrite("sed 's/-i/- 18:30/' log.md")).toBeUndefined()
-  expect(shellWrite("sed -i '/- 18:30 wrong/d' log.md")).toBeUndefined()
-  expect(shellWrite("sed -Ei 's/x/- 18:30/' log.md")?.file).toBe('log.md')
-  expect(shellWrite("sed -i -f fix.sed log.md")).toBeUndefined()
-  expect(shellWrite("sed -i 's/a\\/b/c\\/18:30/' log.md")?.text).toBe('c/18:30')
-  expect(() => shellWrite("sed -i 's' log.md; sed -i 's[a[b[' x.md; sed -i 's^a^b^' y.md; sed -i 's-a-b-' z.md")).not.toThrow()
+test('look-alikes left alone: grep -i, sed -n p, a word starting with sed, -i inside the script', async ($, on) => {
+  const w = world(on, { 'log.md': 'a\nx\n' })
+  const L = '- 2026-10-31 18:30'
+  expect((await bash($, `grep -i x log.md | sed 's/a/${L}/'`)).deny).toBeUndefined()
+  expect((await bash($, "sed -n -E '/x/p' log.md")).deny).toBeUndefined()
+  expect((await bash($, `sedx -i 's/a/${L} b/' log.md`)).deny).toBeUndefined()
+  expect((await bash($, `sed 's/-i/${L}/' log.md`)).deny).toBeUndefined()
+  expect((await bash($, `sed -i '/${L} wrong/d' log.md`)).deny).toBeUndefined()
+  expect(w.ran.length).toBe(5)
+  expect((await bash($, `sed -Ei 's/x/${L}/' log.md`)).deny).toContain('18:30')
+  expect((await bash($, 'sed -i -f fix.sed log.md')).deny).toBeUndefined()
+  expect((await bash($, "sed -i 's/a\\/b/2026-10-31 18:31 c\\/d/' ~/log.md")).deny).toContain('(in: 2026-10-31 18:31 c/d)')
+  expect((await bash($, "sed -i 's' log.md; sed -i 's[a[b[' x.md; sed -i 's^a^b^' y.md; sed -i 's-a-b-' z.md")).deny).toBeUndefined()
 })

@@ -1,7 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 import { addedLines, judge, stampsIn } from '../hooks/stamps'
-import { shellWrite } from '../hooks/register'
 
 type On = Parameters<TestBody>[1]
 type $T = Parameters<TestBody>[0]
@@ -141,26 +140,33 @@ test('bare times count only in a file named for a date; elsewhere a "16:30" is l
   expect(await write($, '/p/notes/meeting.md', '- 23:30 call with the team\n')).not.toHaveProperty('deny')
 })
 
-test('shellWrite reads heredocs, echo and printf, and ignores redirects to /dev/null', () => {
-  expect(shellWrite("cat >> log.md <<'EOF'\n- 16:05 x\nEOF")).toEqual({ file: 'log.md', text: '- 16:05 x' })
-  expect(shellWrite('printf "%s\\n" "a" | tee -a out.log')?.file).toBe('out.log')
-  expect(shellWrite('ls 2>/dev/null')).toBeUndefined()
-  expect(shellWrite('git log')).toBeUndefined()
+test('the hook reads heredocs, echo and printf, and ignores redirects to /dev/null', async ($, on) => {
+  const w = world(on)
+  expect((await bash($, "cat >> log.md <<'EOF'\n- 2026-10-31 18:30 x\nEOF")).deny).toContain('(in: - 2026-10-31 18:30 x)')
+  expect((await bash($, 'printf "%s\\n" "- 2026-10-31 18:31 a" | tee -a out.log')).deny).toContain('(in: - 2026-10-31 18:31 a)')
+  expect((await bash($, 'echo "- 2026-10-31 18:32 a" > /dev/null')).deny).toBeUndefined()
+  expect((await bash($, 'ls 2>/dev/null')).deny).toBeUndefined()
+  expect((await bash($, 'git log')).deny).toBeUndefined()
+  expect(w.ran).toEqual(['Bash', 'Bash', 'Bash'])
 })
 
 // Seen 2026-11-02: an agent put a guessed time into a record with `sed -i`, which date-check did not read.
-test('shellWrite reads sed -i: the file, and the text a substitution or an append writes', () => {
-  expect(shellWrite("sed -i 's/^- TBD reviewed/- 18:30 reviewed/' log.md")).toEqual({ file: 'log.md', text: '- 18:30 reviewed' })
-  expect(shellWrite("sed -i '$a - 18:30 reviewed the export fix' notes/log.md")).toEqual({ file: 'notes/log.md', text: '- 18:30 reviewed the export fix' })
-  expect(shellWrite('sed -i.bak -e "235s|$| checked 18:30|" log.md')).toEqual({ file: 'log.md', text: ' checked 18:30' })
-  expect(shellWrite("sed -i '' 's/a/b 18:30/g' log.md")?.file).toBe('log.md')
-  expect(shellWrite("sed -i -E 's#x#- 18:30 y#' /p/log.md && tail -1 /p/log.md")?.file).toBe('/p/log.md')
+// Under ~ the file is not read, so each of these judges the text the script writes.
+test('the hook reads sed -i: the text a substitution or an append writes', async ($, on) => {
+  world(on)
+  expect((await bash($, "sed -i 's/^- TBD reviewed/- 2026-10-31 18:30 reviewed/' ~/log.md")).deny).toContain('(in: - 2026-10-31 18:30 reviewed)')
+  expect((await bash($, "sed -i '$a - 2026-10-31 18:31 reviewed the export fix' ~/notes/log.md")).deny).toContain('(in: - 2026-10-31 18:31 reviewed the export fix)')
+  expect((await bash($, 'sed -i.bak -e "235s|$|2026-10-31 18:32 checked|" ~/log.md')).deny).toContain('(in: 2026-10-31 18:32 checked)')
+  expect((await bash($, "sed -i '' 's/a/- 2026-10-31 18:33 b/g' ~/log.md")).deny).toContain('18:33')
+  expect((await bash($, "sed -i -E 's#x#- 2026-10-31 18:34 y#' ~/log.md && tail -1 ~/log.md")).deny).toContain('18:34')
 })
 
-test('shellWrite leaves sed alone when it only prints: no -i, or -n with p', () => {
-  expect(shellWrite("sed 's/a/b 18:30/' log.md")).toBeUndefined()
-  expect(shellWrite("sed -n '1,20p' log.md")).toBeUndefined()
-  expect(shellWrite("grep -n x log.md | sed 's/:/ /'")).toBeUndefined()
+test('the hook leaves sed alone when it only prints: no -i, or -n with p', async ($, on) => {
+  const w = world(on, { 'log.md': 'a\n' })
+  expect((await bash($, "sed 's/a/- 2026-10-31 18:30 b/' log.md")).deny).toBeUndefined()
+  expect((await bash($, "sed -n '1,20p' log.md")).deny).toBeUndefined()
+  expect((await bash($, "grep -n x log.md | sed 's/:/- 2026-10-31 18:30 /'")).deny).toBeUndefined()
+  expect(w.ran).toEqual(['Bash', 'Bash', 'Bash'])
 })
 
 test('addedLines keeps a repeated line once per time it is added', () => {
@@ -196,7 +202,6 @@ test('a changelog with no extension is judged like CHANGELOG.md', async ($, on) 
 test('a shell line with two echos to one file judges both (seen in a preview: a blank line, then the stamped one)', async ($, on) => {
   const w = world(on)
   const cmd = `cd log && [ -n "$(tail -c1 2026-10-31.md)" ] && echo >> 2026-10-31.md; echo "- 18:30 reviewed the export fix" >> 2026-10-31.md && cat 2026-10-31.md`
-  expect(shellWrite(cmd)?.text).toContain('18:30')
   const r = await bash($, cmd)
   expect(r.deny).toContain('"18:30"')
   expect(w.ran).toEqual([])
