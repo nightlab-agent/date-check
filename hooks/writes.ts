@@ -1,7 +1,7 @@
 // What a shell command writes: for each file it names, the text it sends there.
 
 import { commandIn, commandName, sedCommands, sedInPlace, shellParts, writtenText } from './sed'
-import { shellWords, stages, withoutRedirects } from './shell'
+import { docOf, shellWords, stages, withoutRedirects } from './shell'
 import type { Word } from './shell'
 
 /** Files whose stamps are judged: Markdown and plain text, logs, and changelog-like names. Code is not. */
@@ -47,20 +47,21 @@ export const PIPED = '(files from xargs).txt'
 /** One write a shell command makes: the file, the text, and for a sed -i its scripts. */
 export type ShellWrite = { file: string; text: string; sed?: { scripts: string[]; ere: boolean; z: boolean; scriptFile: boolean } }
 
+/** The text a `cat` or `tee` gets on its input: the body of its last heredoc, as the shell gives it. */
+const heredocIn = (words: Word[], docs: string[]) => {
+  const at = words.findLastIndex(w => w.redirect && /^<<-?$/.test(w.text))
+  return at < 0 ? undefined : docOf(words[at + 1]?.text, docs)
+}
+
 /**
- * Every write in a shell command, in order: each `cat` or `tee` heredoc (at a line's start or after
- * `&&`, `||`, `;` or `|`) whose own line sends it to a file, an `echo`/`printf` whose own part of
- * the command (between `&&`, `||`, `;` and new lines, outside quotes) sends it to a file
- * (outFiles), and each file a `sed -i` edits.
+ * Every write in a shell command, in order: an `echo`, a `printf`, or a `cat` or `tee` with a heredoc
+ * whose own part of the command (between `&&`, `||`, `;` and new lines, outside quotes) sends it to
+ * a file (outFiles), and each file a `sed -i` edits.
  */
 export const shellWrites = (command: string): ShellWrite[] => {
   const out: ShellWrite[] = []
-  // Each heredoc is one write among the others: a second heredoc, a sed -i or an echo in the same command is read too.
-  for (const doc of command.matchAll(/(?:^|[;&|])[ \t]*(cat|tee)\b((?:\\\n|[^\n])*)<<-?\s*['"]?([^\s'"<>;&|()]+)['"]?([^\n]*)\n([\s\S]*?)\n\s*\3\s*$/gm)) {
-    // What follows the heredoc's own command on that line (`&& echo ...`) is read with the other parts below.
-    for (const file of outFiles(`${doc[1]}${doc[2]} ${shellParts(doc[4]!)[0]}`)) out.push({ file, text: doc[5]! })
-  }
-  for (const part of shellParts(command.replace(/<<-?\s*['"]?([^\s'"<>;&|()]+)['"]?([^\n]*)\n[\s\S]*?\n\s*\1\s*$/gm, '$2'))) {
+  const docs: string[] = []
+  for (const part of shellParts(command, docs)) {
     const sed = sedInPlace(part)
     if (sed) {
       // sed reads its scripts as one, a new line between them (`-e 'a\\' -e 'text'`).
@@ -71,11 +72,15 @@ export const shellWrites = (command: string): ShellWrite[] => {
       if (text && sed.piped && sed.source.some(isText)) out.push({ file: PIPED, text })
       continue
     }
-    const first = stages(shellWords(part)).find(stage => stage.length)
-    const run = first && commandIn(first)
-    if (!run || !/^(?:echo|printf)$/.test(commandName(run.words[0]!))) continue
-    const text = printed(run.words)
-    for (const file of outFiles(part)) out.push({ file, text })
+    for (const stage of stages(shellWords(part))) {
+      const run = commandIn(stage)
+      if (!run) continue
+      const name = commandName(run.words[0]!)
+      const text = /^(?:echo|printf)$/.test(name) ? printed(run.words) : /^(?:cat|tee)$/.test(name) ? heredocIn(run.words, docs) : undefined
+      if (text === undefined) continue
+      for (const file of outFiles(part)) out.push({ file, text })
+      break
+    }
   }
   return out
 }

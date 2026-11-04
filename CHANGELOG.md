@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A heredoc is read wherever its command stands: behind `then`, `do`, `else`, `elif`, `(`, `{`,
+  `!`, a variable, `env` or another wrapper, with `<<-` (tabs taken off) or `<<\EOF`, and in
+  command order among the other writes of the command. A heredoc for another program no longer
+  counts as the input of a `cat` earlier on the line. A `(` or `)` in quotes inside `$(...)` no
+  longer hides the redirect after it. tests/heredoc-commands.test.tsx fails on 19 cases without
+  this. Not seen on a screen.
 - A backslash at a line's end joins the two lines as bash does: a command split over lines
   (`sed -i \` with the script on the next line, `echo ... >> \` with the file on the next, a
   heredoc's redirect) is read as one. tests/line-continuations.test.tsx fails on 7 cases without

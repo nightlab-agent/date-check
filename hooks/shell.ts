@@ -1,11 +1,38 @@
 // The shell side of reading a command: its parts between separators and the words of one part,
 // cut only outside quotes, the way the shell itself reads them.
 
-/** The parts of a shell command between `&&`, `||`, `;`, a single `&` and new lines that sit outside quotes, comments left out. */
-export const shellParts = (command: string): string[] => {
+/** A heredoc's place in a part: `<<` and this word, whose number is its body's in `docs`. */
+const docMark = (n: number) => `${n}`
+/** The body in `docs` that a redirect's word stands for. */
+export const docOf = (word: string | undefined, docs: string[]) => docs[Number(/^(\d+)$/.exec(word ?? '')?.[1] ?? NaN)]
+
+/** The text of a heredoc whose body starts at `from`, and where the line after its end starts; undefined with no end line. */
+const docBody = (command: string, from: number, end: string, tabs: boolean) => {
+  const lines: string[] = []
+  for (let at = from; at <= command.length; ) {
+    const stop = command.indexOf('\n', at)
+    const raw = command.slice(at, stop < 0 ? undefined : stop)
+    const line = tabs ? raw.replace(/^\t+/, '') : raw
+    if (line === end) return { text: lines.join('\n'), next: stop < 0 ? command.length : stop + 1 }
+    if (stop < 0) return undefined
+    lines.push(line)
+    at = stop + 1
+  }
+  return undefined
+}
+
+/**
+ * The parts of a shell command between `&&`, `||`, `;`, a single `&` and new lines that sit outside
+ * quotes, comments left out. A heredoc's body is no part: it goes in `docs`, and `<<` keeps a word
+ * that names it (docOf), so each heredoc stays in its place among the commands. As bash does, the
+ * body starts on the line after the `<<` and ends at a line that is exactly the word (`<<-` takes
+ * the tabs off). With no such line it is no heredoc: `$((1<<2))` is a shift.
+ */
+export const shellParts = (command: string, docs: string[] = []): string[] => {
   const parts: string[] = []
   let cur = ''
   let q: string | undefined
+  let waiting: { n: number; end: string; tabs: boolean }[] = []
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!
     if (q) {
@@ -37,6 +64,30 @@ export const shellParts = (command: string): string[] => {
       while (i + 1 < command.length && command[i + 1] !== '\n') i++
       continue
     }
+    const doc = c === '<' ? /^<<(-?)[ \t]*((?:'[^'\n]*'|"[^"\n]*"|\\.|[^\s'"\\<>;&|()])+)/.exec(command.slice(i)) : null
+    if (doc) {
+      const n = docs.push('') - 1
+      waiting.push({ n, end: doc[2]!.replace(/['"\\]/g, ''), tabs: doc[1] === '-' })
+      cur += `<<${docMark(n)}`
+      i += doc[0].length - 1
+      continue
+    }
+    if (command.startsWith('<<<', i)) {
+      cur += '<<<'
+      i += 2
+      continue
+    }
+    if (c === '\n' && waiting.length) {
+      let at = i + 1
+      for (const w of waiting) {
+        const body = docBody(command, at, w.end, w.tabs)
+        if (!body) continue
+        docs[w.n] = body.text
+        at = body.next
+      }
+      waiting = []
+      i = at - 1
+    }
     const two = command.slice(i, i + 2)
     if (two === '&&' || two === '||') {
       parts.push(cur)
@@ -60,6 +111,23 @@ export const shellParts = (command: string): string[] => {
 export type Word = { text: string; quoted: boolean; pipe?: boolean; redirect?: boolean }
 
 const REDIRECT = /^(?:&>>?|>>|>\||>&|>|<<<|<<-?|<&|<>|<)/
+
+/** The `)` that closes the `(` at `from`, quotes and escapes skipped as bash skips them; the text's end when none does. */
+const substitutionEnd = (part: string, from: number) => {
+  let depth = 0
+  for (let i = from; i < part.length; i++) {
+    const c = part[i]!
+    if (c === '\\') i++
+    else if (c === "'") {
+      const end = part.indexOf("'", i + 1)
+      i = end < 0 ? part.length : end
+    } else if (c === '"') {
+      for (i++; i < part.length && part[i] !== '"'; i++) if (part[i] === '\\') i++
+    } else if (c === '(') depth++
+    else if (c === ')' && --depth === 0) return i
+  }
+  return part.length
+}
 
 /**
  * The words of one part of a command, as the shell reads them: pieces that touch with no space
@@ -111,12 +179,7 @@ export const shellWords = (part: string): Word[] => {
       quoted = c === "'" || c === '"' || (c === '$' && part[i + 1] === "'")
     }
     if (c === '$' && part[i + 1] === '(') {
-      let depth = 0
-      let end = i + 1
-      for (; end < part.length; end++) {
-        if (part[end] === '(') depth++
-        else if (part[end] === ')' && --depth === 0) break
-      }
+      const end = substitutionEnd(part, i + 1)
       text += part.slice(i, end + 1)
       i = end
     } else if (c === '$' && part[i + 1] === "'") {
