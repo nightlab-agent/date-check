@@ -106,7 +106,8 @@ and said the time was filled in from the clock as the file was written.
   changes one (on a file that exists, the lines its substitution changes, judged
   as the same Edit would be; where the substitution cannot be read the way sed
   reads it (a line range, the Nth match, `w`), the text it puts in, or a line `a`, `i` or
-  `c` adds). A script read from a file (`-f`) is not read, so what it writes is not checked.
+  `c` adds). A script read from a file (`-f`) is not read, so what it writes is not checked;
+  a `-e` script beside it still is, by the text it puts in.
 - `sed -i` is found behind settings such as `LC_ALL=C`, a path (`/usr/bin/sed`),
   `gsed`, and `env`, `command`, `sudo`, `timeout`, `nice`, `time` or `nohup`.
   After `xargs` it is checked only when the command feeding the pipe names a text

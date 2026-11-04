@@ -40,3 +40,11 @@ refuses('a glued -e', `sed -i -e's/^- TBD/${L}/' log.md`, TBD)
 refuses('a glued -e after -n', `sed -i -n -e's/^- TBD/${L}/p' log.md`, TBD)
 refuses('a glued -ne', `sed -i -ne's/^- TBD/${L}/p' log.md`, TBD)
 refuses('a glued -Ee is extended', `sed -i -Ee's/^- (TBD)/${L}/' log.md`, TBD)
+
+// A script file is not read; a script beside it still is.
+passes('comparison: -f alone is not read', `sed -i -f fix.sed log.md`, TBD)
+refuses('-f then -e', `sed -i -f fix.sed -e 's/^- TBD/${L}/' log.md`, TBD)
+refuses('-e then -f', `sed -i -e 's/^- TBD/${L}/' -f fix.sed log.md`, TBD)
+refuses('--file= then -e', `sed -i --file=fix.sed -e 's/^- TBD/${L}/' log.md`, TBD)
+refuses('a glued -f then -e', `sed -i -ffix.sed -e 's/^- TBD/${L}/' log.md`, TBD)
+passes('with -f the file is not taken for a script: a date in its name adds no text', `sed -i -f fix.sed 2026-12-25.md`, { '2026-12-25.md': 'x\n' })

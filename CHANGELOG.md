@@ -32,6 +32,9 @@
 - A `sed -i` script glued to its option (`-e's/a/b/'`, `-ne'...'`, `-Ee'...'`) is read.
   Before, it was skipped as an unknown option. tests/sed-forms.test.tsx fails on 4 cases
   without this. Not seen on a screen.
+- A `-e` script beside a `sed -i -f` file is judged by the text it writes. Before, one `-f`
+  dropped the whole command. tests/sed-forms.test.tsx fails on 4 cases without this. Not seen
+  on a screen.
 
 ## 0.1.6 (2026-11-03)
 

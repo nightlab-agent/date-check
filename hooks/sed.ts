@@ -269,10 +269,11 @@ const sedWords = (words: Word[]) => {
 
 /**
  * A `sed -i` in one part of a command (any command of a pipeline): its scripts, whether they are
- * extended, every file it names, and `piped` when xargs runs it (then more files come from the pipe,
+ * extended, whether it also runs a script file (`-f`, not read: what it does to the text is not
+ * known, so the scripts are only read for what they write), every file it names, and `piped` when xargs runs it (then more files come from the pipe,
  * and `source` is the words of the commands before it in the pipeline).
  */
-export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: boolean; files: string[]; piped: boolean; source: string[] } | undefined => {
+export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: boolean; scriptFile: boolean; files: string[]; piped: boolean; source: string[] } | undefined => {
   const all = shellWords(part)
   let found: ReturnType<typeof sedWords>
   let from = 0
@@ -288,6 +289,7 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: 
   let inPlace = false
   let ere = false
   let z = false
+  let scriptFile = false
   const scripts: string[] = []
   const rest: string[] = []
   for (let i = 1; i < tokens.length; i++) {
@@ -315,7 +317,7 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: 
         } else if ('efl'.includes(o)) {
           const value = t.text.slice(k + 1) || (tokens[++i]?.text ?? '')
           if (o === 'e') scripts.push(value)
-          if (o === 'f') return undefined // a script file: not read
+          if (o === 'f') scriptFile = true
           break
         }
       }
@@ -324,12 +326,15 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: 
     else if (t.text.startsWith('--expression=')) scripts.push(t.text.slice('--expression='.length))
     else if (t.text === '--expression') scripts.push(tokens[++i]?.text ?? '')
     else if (t.text.startsWith('--in-place')) inPlace = true
-    else if (t.text === '--file' || t.text.startsWith('--file=')) return undefined // a script file: not read
+    else if (t.text === '--file') {
+      scriptFile = true
+      i++
+    } else if (t.text.startsWith('--file=')) scriptFile = true
   }
   if (!inPlace) return undefined
-  if (!scripts.length && rest.length) scripts.push(rest.shift()!)
+  if (!scripts.length && !scriptFile && rest.length) scripts.push(rest.shift()!)
   const files = rest.filter(f => f !== '/dev/null')
   // The words of the pipeline before the sed's own command: where xargs gets its file names.
   const source = all.slice(0, from).filter(w => !w.pipe).map(w => w.text)
-  return files.length || found.piped ? { scripts, ere, z, files, piped: found.piped, source } : undefined
+  return files.length || found.piped ? { scripts, ere, z, scriptFile, files, piped: found.piped, source } : undefined
 }

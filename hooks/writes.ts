@@ -45,7 +45,7 @@ const printed = ([command, ...args]: Word[]) => {
 export const PIPED = '(files from xargs).txt'
 
 /** One write a shell command makes: the file, the text, and for a sed -i its scripts. */
-export type ShellWrite = { file: string; text: string; sed?: { scripts: string[]; ere: boolean; z: boolean } }
+export type ShellWrite = { file: string; text: string; sed?: { scripts: string[]; ere: boolean; z: boolean; scriptFile: boolean } }
 
 /**
  * Every write in a shell command, in order: each `cat` or `tee` heredoc (at a line's start or after
@@ -64,7 +64,7 @@ export const shellWrites = (command: string): ShellWrite[] => {
     const sed = sedInPlace(part)
     if (sed) {
       const text = sed.scripts.flatMap(sedCommands).map(writtenText).filter((t): t is string => t !== undefined).join('\n')
-      if (text) for (const file of sed.files) out.push({ file, text, sed: { scripts: sed.scripts, ere: sed.ere, z: sed.z } })
+      if (text) for (const file of sed.files) out.push({ file, text, sed: { scripts: sed.scripts, ere: sed.ere, z: sed.z, scriptFile: sed.scriptFile } })
       // Run by xargs: the files come from the pipe, so the text it writes is judged alone, when the
       // pipe's source names text files (`grep -l TBD log.md`, `git ls-files '*.md'`); code is not judged.
       if (text && sed.piped && sed.source.some(isText)) out.push({ file: PIPED, text })

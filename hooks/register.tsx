@@ -38,7 +38,7 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[]) {
   }
   let after: string | undefined = before
   for (const w of writes) {
-    if (w.sed) after = applySed(after, w.sed.scripts, w.sed.ere, w.sed.z)
+    if (w.sed) after = w.sed.scriptFile ? undefined : applySed(after, w.sed.scripts, w.sed.ere, w.sed.z)
     else after = `${after}${after === '' || after.endsWith('\n') ? '' : '\n'}${w.text}\n`
     if (after === undefined) return undefined
   }
