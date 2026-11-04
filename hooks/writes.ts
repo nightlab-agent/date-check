@@ -56,7 +56,7 @@ export type ShellWrite = { file: string; text: string; sed?: { scripts: string[]
 export const shellWrites = (command: string): ShellWrite[] => {
   const out: ShellWrite[] = []
   // Each heredoc is one write among the others: a second heredoc, a sed -i or an echo in the same command is read too.
-  for (const doc of command.matchAll(/(?:^|[;&|])[ \t]*(cat|tee)\b([^\n]*)<<-?\s*['"]?([^\s'"<>;&|()]+)['"]?([^\n]*)\n([\s\S]*?)\n\s*\3\s*$/gm)) {
+  for (const doc of command.matchAll(/(?:^|[;&|])[ \t]*(cat|tee)\b((?:\\\n|[^\n])*)<<-?\s*['"]?([^\s'"<>;&|()]+)['"]?([^\n]*)\n([\s\S]*?)\n\s*\3\s*$/gm)) {
     // What follows the heredoc's own command on that line (`&& echo ...`) is read with the other parts below.
     for (const file of outFiles(`${doc[1]}${doc[2]} ${shellParts(doc[4]!)[0]}`)) out.push({ file, text: doc[5]! })
   }

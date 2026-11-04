@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A backslash at a line's end joins the two lines as bash does: a command split over lines
+  (`sed -i \` with the script on the next line, `echo ... >> \` with the file on the next, a
+  heredoc's redirect) is read as one. tests/line-continuations.test.tsx fails on 7 cases without
+  this. Not seen on a screen.
 - The README and this log said `sed -i -f` falls back to judging the written text. It does not: a
   script read from a file is not read, and the README says so now. The `staleNotes` setting says
   that a new file named for a past day is still refused with it off. The README lists `CHANGES`

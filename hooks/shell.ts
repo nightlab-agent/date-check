@@ -67,7 +67,8 @@ const REDIRECT = /^(?:&>>?|>>|>\||>&|>|<<<|<<-?|<&|<>|<)/
  * outside quotes is a space in the word; a `|`, `(` or `)` outside quotes is a word of its own (`pipe`), and so
  * is a redirect (`redirect`: `>>`, `2>`, `&>`, its file the next word). `quoted` says the word began
  * with a quote (then it is never an option). Outside quotes a backslash is dropped only before a space, a
- * quote, a backslash or `|;&`, so a Windows path (`E:\p\log.md`) keeps its separators.
+ * quote, a backslash or `|;&`, so a Windows path (`E:\p\log.md`) keeps its separators; a backslash and a
+ * new line, outside quotes or in double quotes, are both dropped.
  */
 export const shellWords = (part: string): Word[] => {
   const out: Word[] = []
@@ -94,6 +95,11 @@ export const shellWords = (part: string): Word[] => {
       else push()
       out.push({ text: fd + op, quoted: false, redirect: true })
       i += op.length - 1
+      continue
+    }
+    // A backslash at a line's end joins the lines: it is no word and no character.
+    if (c === '\\' && part[i + 1] === '\n') {
+      i++
       continue
     }
     if (/\s/.test(c)) {
@@ -129,7 +135,11 @@ export const shellWords = (part: string): Word[] => {
       i = stop
     } else if (c === '"') {
       for (i++; i < part.length && part[i] !== '"'; i++) {
-        if (part[i] === '\\' && i + 1 < part.length && '$`"\\\n'.includes(part[i + 1]!)) i++
+        if (part[i] === '\\' && part[i + 1] === '\n') {
+          i++
+          continue
+        }
+        if (part[i] === '\\' && i + 1 < part.length && '$`"\\'.includes(part[i + 1]!)) i++
         text += part[i]
       }
     } else if (c === '\\' && i + 1 < part.length) {
