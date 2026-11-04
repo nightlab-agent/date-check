@@ -286,7 +286,7 @@ const sedWords = (words: Word[]) => {
  * known, so the scripts are only read for what they write), every file it names, and `piped` when xargs runs it (then more files come from the pipe,
  * and `source` is the words of the commands before it in the pipeline).
  */
-export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: boolean; scriptFile: boolean; files: string[]; piped: boolean; source: string[] } | undefined => {
+export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: boolean; scriptFile: boolean; files: Word[]; piped: boolean; source: string[] } | undefined => {
   const all = shellWords(part)
   let found: ReturnType<typeof sedWords>
   let from = 0
@@ -304,7 +304,7 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: 
   let z = false
   let scriptFile = false
   const scripts: string[] = []
-  const rest: string[] = []
+  const rest: Word[] = []
   for (let i = 1; i < tokens.length; i++) {
     const t = tokens[i]!
     if (t.redirect) {
@@ -312,7 +312,7 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: 
       continue
     }
     if (t.quoted || !t.text.startsWith('-')) {
-      rest.push(t.text)
+      rest.push(t)
       continue
     }
     if (/^-[a-zA-Z]/.test(t.text)) {
@@ -345,8 +345,8 @@ export const sedInPlace = (part: string): { scripts: string[]; ere: boolean; z: 
     } else if (t.text.startsWith('--file=')) scriptFile = true
   }
   if (!inPlace) return undefined
-  if (!scripts.length && !scriptFile && rest.length) scripts.push(rest.shift()!)
-  const files = rest.filter(f => f !== '/dev/null')
+  if (!scripts.length && !scriptFile && rest.length) scripts.push(rest.shift()!.text)
+  const files = rest.filter(f => f.text !== '/dev/null')
   // The words of the pipeline before the sed's own command: where xargs gets its file names.
   const source = all.slice(0, from).filter(w => !w.pipe).map(w => w.text)
   return files.length || found.piped ? { scripts, ere, z, scriptFile, files, piped: found.piped, source } : undefined

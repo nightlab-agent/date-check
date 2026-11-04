@@ -108,7 +108,7 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
 }
 
 
-export type Word = { text: string; quoted: boolean; pipe?: boolean; redirect?: boolean }
+export type Word = { text: string; quoted: boolean; pipe?: boolean; redirect?: boolean; expands?: boolean }
 
 const REDIRECT = /^(?:&>>?|>>|>\||>&|>|<<<|<<-?|<&|<>|<)/
 
@@ -136,15 +136,18 @@ const substitutionEnd = (part: string, from: number) => {
  * is a redirect (`redirect`: `>>`, `2>`, `&>`, its file the next word). `quoted` says the word began
  * with a quote (then it is never an option). Outside quotes a backslash is dropped only before a space, a
  * quote, a backslash or `|;&`, so a Windows path (`E:\p\log.md`) keeps its separators; a backslash and a
- * new line, outside quotes or in double quotes, are both dropped.
+ * new line, outside quotes or in double quotes, are both dropped. `expands`: the shell works out the word
+ * when it runs: a `*?[{` outside quotes, a `$` or backtick outside single quotes.
  */
 export const shellWords = (part: string): Word[] => {
   const out: Word[] = []
   let text: string | undefined
   let quoted = false
+  let expands = false
   const push = () => {
-    if (text !== undefined) out.push({ text, quoted })
+    if (text !== undefined) out.push({ text, quoted, ...(expands ? { expands } : {}) })
     text = undefined
+    expands = false
   }
   for (let i = 0; i < part.length; i++) {
     const c = part[i]!
@@ -181,6 +184,7 @@ export const shellWords = (part: string): Word[] => {
     if (c === '$' && part[i + 1] === '(') {
       const end = substitutionEnd(part, i + 1)
       text += part.slice(i, end + 1)
+      expands = true
       i = end
     } else if (c === '$' && part[i + 1] === "'") {
       // `$'...'`: quoted, with C escapes (`\n`, `\t`, `\'`, `\\`); any other backslash stays as written.
@@ -203,13 +207,17 @@ export const shellWords = (part: string): Word[] => {
           continue
         }
         if (part[i] === '\\' && i + 1 < part.length && '$`"\\'.includes(part[i + 1]!)) i++
+        else if (part[i] === '$' || part[i] === '`') expands = true
         text += part[i]
       }
     } else if (c === '\\' && i + 1 < part.length) {
       const n = part[i + 1]!
       text += /[\s'"\\|;&]/.test(n) ? n : c + n
       i++
-    } else text += c
+    } else {
+      if (/[*?[{$`]/.test(c)) expands = true
+      text += c
+    }
   }
   push()
   return out

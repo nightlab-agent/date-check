@@ -41,8 +41,9 @@
 - A `sed -i` on a glob or a variable path (`*.md`, `"$HOME/log.md"`) is judged on the text it
   writes, when the path as written ends in a text file's name. Before, the path counted as a
   missing file and the write was dropped. A file behind a variable no longer counts as new, so
-  its name is not refused. tests/shell-unknown-paths.test.tsx fails on 5 cases without this.
-  Not seen on a screen.
+  its name is not refused. A quoted name that holds `[` or `$` (`'notes[1].md'`) is that one
+  file, looked up like any other. tests/shell-unknown-paths.test.tsx fails on 5 cases without
+  this, tests/literal-file-names.test.tsx on 7. Not seen on a screen.
 - A `sed -i` script glued to its option (`-e's/a/b/'`, `-ne'...'`, `-Ee'...'`) is read.
   Before, it was skipped as an unknown option. tests/sed-forms.test.tsx fails on 4 cases
   without this. Not seen on a screen.

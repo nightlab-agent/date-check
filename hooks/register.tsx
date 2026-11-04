@@ -59,9 +59,6 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   return { file, before, after }
 }
 
-/** A path the shell works out when it runs (`*.md`, `$HOME/log.md`): as written it names no file. */
-const unexpanded = (file: string) => /[*?[{$`]/.test(file)
-
 /** The directory changes in a shell command (`cd a`, `(pushd b`): after one, a relative path means no one place. */
 const dirMoves = (command: string) =>
   [...command.matchAll(/(?:^|[;&|\n({]\s*)(cd|pushd)\s+([^;&|\n)}]*)/g)].map(m => `${m[1]} ${m[2]!.trim()}`)
@@ -122,8 +119,9 @@ async function changes($: EngineInterface, x: Call): Promise<Change[]> {
     const moved = movesDir(x.command)
     const out: Change[] = []
     for (const file of [...new Set(all.map(v => v.file))]) {
-      const sure = !file.startsWith('~') && !unexpanded(file) && !moved && file !== PIPED
       let ws = all.filter(v => v.file === file)
+      // A path the shell works out when it runs (`*.md`, `$HOME/log.md`): as written it names no file.
+      const sure = !file.startsWith('~') && !ws.some(v => v.expands) && !moved && file !== PIPED
       const exists = sure ? await existsAt($, file) : undefined
       // sed -i edits only files that exist: on a missing one it writes nothing there (and goes on to
       // the next) until a write of this command has made it.
