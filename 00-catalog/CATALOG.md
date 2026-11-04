@@ -7,6 +7,7 @@
 | `04-memory/STATE.md` | What is true now: version, seen where, open questions. |
 | `04-memory/log/` | One dated file per working session. |
 | `hooks/stamps.ts` | Finding stamps in text and judging them against the clock (pure). |
+| `hooks/fences.ts` | Which lines of a text sit in a code fence, inside list items too (pure). |
 | `hooks/register.tsx` | The hooks module. |
 | `hooks/shell.ts` | Reading a shell command's parts and words, quotes resolved. |
 | `hooks/sed.ts` | Working out the lines a `sed -i` changes. |

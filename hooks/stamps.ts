@@ -6,6 +6,8 @@
 // Updated:, Released:, date: in frontmatter), or the opening of a line (a log line). A date
 // inside a sentence ("the outage on 2024-03-01") is an event, not a stamp, and is left alone.
 
+import { fences } from './fences'
+
 export type Stamp = {
   /** The text as written, e.g. `2024-06-12` or `2026-10-31 16:05`. */
   text: string
@@ -116,33 +118,6 @@ const lineStamp = (line: string, fileDate?: string): Stamp | undefined => {
   if (fileDate && (m = timeOpening.exec(line)) && Number(m[1]) < 24 && Number(m[2]) < 60)
     return { text: `${m[1]}:${m[2]}${m[3] ? ` ${m[3]}` : ''}`, line: shortLine(line), where: 'line-start', date: fileDate, minutes: Number(m[1]) * 60 + Number(m[2]), ...zoneOf(m[3]) }
   return undefined
-}
-
-/**
- * Each line's place in a code fence, the one reading the judge and fill share. A fence opens with
- * ``` or ~~~ at up to three spaces (a ``` line with another ` on it is inline code) and closes
- * with a line of the same mark, as long or longer, with nothing after it. `code`: a fence's own
- * lines and those between; `closed`: the same, in a fence that closes.
- */
-const fences = (lines: string[]) => {
-  const out = lines.map(() => ({ code: false, closed: false }))
-  let fence: string | undefined
-  let from = 0
-  for (const [i, line] of lines.entries()) {
-    const mark = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1]
-    if (fence !== undefined) {
-      out[i]!.code = true
-      if (mark && mark[0] === fence[0] && mark.length >= fence.length && /^ {0,3}[`~]+\s*$/.test(line)) {
-        for (let k = from; k <= i; k++) out[k]!.closed = true
-        fence = undefined
-      }
-    } else if (mark && !(mark[0] === '`' && line.slice(line.indexOf(mark) + mark.length).includes('`'))) {
-      out[i]!.code = true
-      fence = mark
-      from = i
-    }
-  }
-  return out
 }
 
 /**

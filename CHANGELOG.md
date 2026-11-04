@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- A code fence inside a list item is code, as a Markdown reader shows it: indented under the item
+  by spaces or a tab, on the marker's own line, or under a nested or numbered item. Before, a date
+  in such a sample was refused, and a placeholder in one was filled. The fence ends with its item
+  when a line sits left of the item's text. tests/code-fences.test.tsx fails on 9 cases without
+  this. Not seen on a screen.
 - A `sed -i` on a file the same command made earlier is judged on what it leaves there
   (`echo "- TBD" > n.md; sed -i 's/TBD/.../' n.md`). Before, it counted as an edit of a missing
   file and was dropped. tests/files-made-in-a-command.test.tsx fails on 4 cases without this. Not
