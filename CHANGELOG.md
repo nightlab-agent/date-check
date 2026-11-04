@@ -51,6 +51,11 @@
   offset -11:30 and refused as future. When the end is after the start, the text is judged
   both ways and called wrong only if wrong under both; a time with `T` or seconds keeps its
   offset. tests/time-ranges.test.tsx fails on 5 cases without this. Not seen on a screen.
+- The judge and the placeholder fill read a code fence the same one way: closed only by the
+  same mark, as long or longer, with nothing after it, and a line with inline ```` ```x```
+  ```` opens none. Before, the judge toggled on any ``` or ~~~ line, so a stamp after such a
+  line could go unjudged and a sample inside a fence could be refused.
+  tests/code-fences.test.tsx fails on 6 cases without this. Not seen on a screen.
 
 ## 0.1.6 (2026-11-03)
 

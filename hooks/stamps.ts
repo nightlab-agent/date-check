@@ -118,16 +118,31 @@ const lineStamp = (line: string, fileDate?: string): Stamp | undefined => {
   return undefined
 }
 
-/** For each line, whether it sits in a code fence that is closed (a fence left open to the end is not counted). */
-const closedFences = (lines: string[]): boolean[] => {
-  const inside: boolean[] = []
-  let open = -1
-  for (const [i, l] of lines.entries()) {
-    if (/^\s*(```|~~~)/.test(l)) open = open < 0 ? i : -1
-    inside.push(open >= 0 || (/^\s*(```|~~~)/.test(l) && open < 0))
+/**
+ * Each line's place in a code fence, the one reading the judge and fill share. A fence opens with
+ * ``` or ~~~ at up to three spaces (a ``` line with another ` on it is inline code) and closes
+ * with a line of the same mark, as long or longer, with nothing after it. `code`: a fence's own
+ * lines and those between; `closed`: the same, in a fence that closes.
+ */
+const fences = (lines: string[]) => {
+  const out = lines.map(() => ({ code: false, closed: false }))
+  let fence: string | undefined
+  let from = 0
+  for (const [i, line] of lines.entries()) {
+    const mark = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1]
+    if (fence !== undefined) {
+      out[i]!.code = true
+      if (mark && mark[0] === fence[0] && mark.length >= fence.length && /^ {0,3}[`~]+\s*$/.test(line)) {
+        for (let k = from; k <= i; k++) out[k]!.closed = true
+        fence = undefined
+      }
+    } else if (mark && !(mark[0] === '`' && line.slice(line.indexOf(mark) + mark.length).includes('`'))) {
+      out[i]!.code = true
+      fence = mark
+      from = i
+    }
   }
-  if (open >= 0) for (let i = open; i < lines.length; i++) inside[i] = false
-  return inside
+  return out
 }
 
 /**
@@ -140,25 +155,22 @@ export const newStamps = (before: string, after: string, fileDate?: string): Sta
   // so a sample moved out of a fence into the text is a new line, and closing a fence left open
   // does not make every line under it new.
   const had = new Map<string, number>()
-  const beforeIn = closedFences(before.split(/\r?\n/))
-  before.split(/\r?\n/).forEach((l, i) => {
-    const k = `${beforeIn[i] ? '`' : ' '}${l}`
+  const beforeLines = before.split(/\r?\n/)
+  const beforeIn = fences(beforeLines)
+  beforeLines.forEach((l, i) => {
+    const k = `${beforeIn[i]!.closed ? '`' : ' '}${l}`
     had.set(k, (had.get(k) ?? 0) + 1)
   })
   const out: Stamp[] = []
   const kept: string[] = []
   const lines = after.split(/\r?\n/)
-  const afterIn = closedFences(lines)
-  let fence = false
+  const afterIn = fences(lines)
   for (const [i, line] of lines.entries()) {
-    const isFence = /^\s*(```|~~~)/.test(line)
-    if (isFence) fence = !fence
-    const k = `${afterIn[i] ? '`' : ' '}${line}`
+    const k = `${afterIn[i]!.closed ? '`' : ' '}${line}`
     const n = had.get(k) ?? 0
     const isNew = n === 0
     if (!isNew) had.set(k, n - 1)
-    if (isFence) continue
-    if (fence || indentedCode(line)) continue
+    if (afterIn[i]!.code || indentedCode(line)) continue
     const s = lineStamp(line, fileDate)
     if (s) (isNew ? out.push(s) : kept.push(s.text))
   }
@@ -217,8 +229,7 @@ export const nowText = (ms: number) => {
  * Placeholders the agent writes instead of typing a time, filled from the clock as the call
  * lands: `⟦NOW⟧` 2026-11-01 06:20, `⟦DATE⟧` 2026-11-01, `⟦TIME⟧` 06:20, `⟦NOW-ISO⟧`
  * 2026-11-01T06:20:41-05:00, all local. One in code is kept as written (a README that shows
- * the placeholder): a code span, a ``` or ~~~ fence (closed by the same mark, as long or
- * longer), and, in a file (`indented`), an indented code line, as the judge reads code.
+ * the placeholder): a code span, a ``` or ~~~ fence (fences), and, in a file (`indented`), an indented code line, as the judge reads code.
  * Exactly these spellings: `⟦now⟧`, `[NOW]` and `⟦NOW ⟧` are text. ⟦NOW⟧ has a space in
  * it: in a file name or an unquoted shell word, ⟦DATE⟧ is the one to use.
  */
@@ -229,15 +240,10 @@ export const fillNow = (text: string, ms: number, indented = true): { text: stri
   const iso = `${dayOf(ms)}T${time}:${pad(d.getSeconds())}${o < 0 ? '-' : '+'}${pad(Math.floor(Math.abs(o) / 60))}:${pad(Math.abs(o) % 60)}`
   const value: Record<string, string> = { 'NOW-ISO': iso, NOW: `${dayOf(ms)} ${time}`, DATE: dayOf(ms), TIME: time }
   const filled = new Set<string>()
-  let fence: string | undefined
-  const lines = text.split('\n').map(line => {
-    const mark = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1]
-    if (fence !== undefined) {
-      if (mark && mark[0] === fence[0] && mark.length >= fence.length && /^ {0,3}[`~]+\s*$/.test(line)) fence = undefined
-      return line
-    }
-    if (mark && !(mark[0] === '`' && line.slice(line.indexOf(mark) + mark.length).includes('`'))) { fence = mark; return line }
-    if (indented && indentedCode(line)) return line
+  const all = text.split('\n')
+  const inFence = fences(all)
+  const lines = all.map((line, i) => {
+    if (inFence[i]!.code || (indented && indentedCode(line))) return line
     return line.replace(/(?<!`)(`+)(?!`)[^]*?(?<!`)\1(?!`)|⟦(NOW-ISO|NOW|DATE|TIME)⟧/g, (m, code: string | undefined, tok: string | undefined) => {
       if (code !== undefined || !tok) return m
       filled.add(`⟦${tok}⟧ ${value[tok]}`)
