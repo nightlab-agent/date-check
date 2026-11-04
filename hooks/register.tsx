@@ -27,15 +27,29 @@ type Call = { tool: string; file_path?: string; content?: string; old_string?: s
 
 const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : d)
 
-/** One file's text before and after a shell command's writes to it; undefined when it cannot be read or applied. */
-async function applied($: EngineInterface, file: string, writes: ShellWrite[]) {
-  if (file.startsWith('~') || !(await $.fs.exists(file))) return undefined
-  let before: string
+// The engine rejects a read over 4 MiB and an exists on a network location. The text a call adds
+// is known all the same, so one file that cannot be looked at costs only what it held.
+/** Whether a file exists; undefined when the engine cannot say. */
+const existsAt = async ($: EngineInterface, file: string) => {
   try {
-    before = await $.fs.read(file)
+    return await $.fs.exists(file)
   } catch {
     return undefined
   }
+}
+/** A file's text; undefined when the engine cannot read it. */
+const readAt = async ($: EngineInterface, file: string) => {
+  try {
+    return await $.fs.read(file)
+  } catch {
+    return undefined
+  }
+}
+
+/** One file's text before and after a shell command's writes to it; undefined when it cannot be read or applied. */
+async function applied($: EngineInterface, file: string, writes: ShellWrite[]) {
+  const before = await readAt($, file)
+  if (before === undefined) return undefined
   let after: string | undefined = before
   for (const w of writes) {
     if (w.sed) after = w.sed.scriptFile ? undefined : applySed(after, w.sed.scripts, w.sed.ere, w.sed.z)
@@ -87,12 +101,12 @@ type Change = { file: string; before: string; after: string; created?: boolean }
 /** What a call changes, file by file: each file's text before and after it (a shell command may write several). */
 async function changes($: EngineInterface, x: Call): Promise<Change[]> {
   if (x.tool === 'Write' && typeof x.content === 'string' && x.file_path) {
-    const exists = await $.fs.exists(x.file_path)
-    const before = exists ? await $.fs.read(x.file_path) : ''
-    return [{ file: x.file_path, before, after: x.content, created: !exists }]
+    const exists = await existsAt($, x.file_path)
+    const before = exists ? await readAt($, x.file_path) : undefined
+    return [{ file: x.file_path, before: before ?? '', after: x.content, created: exists === false }]
   }
   if (x.tool === 'Edit' && typeof x.new_string === 'string' && typeof x.old_string === 'string' && x.file_path) {
-    const before = (await $.fs.exists(x.file_path)) ? await $.fs.read(x.file_path) : ''
+    const before = ((await existsAt($, x.file_path)) && (await readAt($, x.file_path))) || ''
     // The whole file after the edit, so a date inside a sentence or a code block reads as one.
     if (x.old_string && before.includes(x.old_string)) {
       const after = x.replace_all ? before.split(x.old_string).join(x.new_string) : before.replace(x.old_string, () => x.new_string!)
@@ -110,13 +124,13 @@ async function changes($: EngineInterface, x: Call): Promise<Change[]> {
     for (const file of [...new Set(all.map(v => v.file))]) {
       const sure = !file.startsWith('~') && !unexpanded(file) && !moved && file !== PIPED
       let ws = all.filter(v => v.file === file)
-      const exists = sure && (await $.fs.exists(file))
+      const exists = sure ? await existsAt($, file) : undefined
       // sed -i edits only files that exist: on a missing one it writes nothing there (and goes on to the next).
-      if (sure && !exists) ws = ws.filter(v => !v.sed)
+      if (exists === false) ws = ws.filter(v => !v.sed)
       if (!ws.length) continue
       // A file that exists: its text after the command (substitutions, then what an echo adds), judged as an Edit is.
       const r = exists ? await applied($, file, ws) : undefined
-      out.push(r ?? { file, before: '', after: ws.map(v => v.text).join('\n'), created: sure && !exists })
+      out.push(r ?? { file, before: '', after: ws.map(v => v.text).join('\n'), created: exists === false })
     }
     return out
   }

@@ -39,6 +39,11 @@
   over lines ending in a backslash, and a text in the `-e` after `a\` are judged. Before, that
   text was lost, and the README says these lines are judged. tests/sed-forms.test.tsx fails on
   6 cases without this. Not seen on a screen.
+- A Write or an Edit whose file cannot be read or looked at (over 4 MiB, a network location)
+  is judged on the text it adds, as a shell write already was, and a shell command keeps
+  judging its other files. Before, one failed look dropped the judgment on the whole call.
+  tests/failed-reads.test.tsx fails on 5 cases without this; the failures there are mocked,
+  not a real large file or share. Not seen on a screen.
 
 ## 0.1.6 (2026-11-03)
 
