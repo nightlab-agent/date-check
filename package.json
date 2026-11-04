@@ -21,6 +21,7 @@
   "author": "Nightlab",
   "files": [
     ".claude-plugin/",
+    "hooks/fences.ts",
     "hooks/hooks.json",
     "hooks/register.tsx",
     "hooks/sed.ts",
