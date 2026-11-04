@@ -40,3 +40,15 @@ passes('R7 comparison: the saturated unsigned value', `printf '202%u-01-15\\n' 1
 // A negative precision means no precision, so bash prints the whole date.
 refuses('R8: a negative precision does not truncate the date', `printf '%.*s\\n' -1 ${date} >notes.md`, {}, date)
 refuses('R8 comparison: an omitted precision prints the date', `printf '%s\\n' ${date} >notes.md`, {}, date)
+
+// One file under two spellings: bash writes the same file for each.
+refuses('a sed -i on ./notes.md made as notes.md in the same command', `echo "- TBD" > notes.md; sed -i 's/TBD/${date}/' ./notes.md`, {}, date)
+refuses('a sed -i on a/./notes.md made as a//notes.md in the same command', `echo "- TBD" > a//notes.md; sed -i 's/TBD/${date}/' a/./notes.md`, {}, date)
+refuses('one file spelled twice comparison: the same spelling in both steps', `echo "- TBD" > notes.md; sed -i 's/TBD/${date}/' notes.md`, {}, date)
+
+// Bash's echo prints a written \n as two characters unless -e is the last of -e and -E.
+passes('echo without -e keeps \\n as text, so the date opens no line', `echo 'a\\n${date}' > notes.md`)
+passes('echo -E keeps \\n as text', `echo -E 'a\\n${date}' > notes.md`)
+passes('echo -e then -E keeps \\n as text', `echo -e -E 'a\\n${date}' > notes.md`)
+refuses('echo -e makes the new line', `echo -e 'a\\n${date}' > notes.md`, {}, date)
+refuses('echo -E then -e makes the new line', `echo -Ee 'a\\n${date}' > notes.md`, {}, date)

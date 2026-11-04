@@ -128,8 +128,8 @@ const formatted = (format: Word | undefined, args: string[]) => {
 
 /**
  * The text an `echo` or `printf` prints, quoted or not: an `echo`'s words as one line after its
- * flags, where a written `\\n` is a new line as `echo -e` makes it, and a `printf` as its format
- * makes it (formatted).
+ * flags, whose escapes count only when `-e` comes last of `-e` and `-E`, and a `printf` as its
+ * format makes it (formatted).
  */
 const printed = ([command, ...args]: Word[]) => {
   const echo = commandName(command!) === 'echo'
@@ -137,7 +137,11 @@ const printed = ([command, ...args]: Word[]) => {
   // The shell takes the quotes off before printf reads its `--`; an echo flag in quotes is the same, but stays text here.
   const first = words.findIndex(w => (echo && w.quoted) || !(echo ? /^-[neE]+$/ : /^--$/).test(w.text))
   const said = first < 0 ? [] : words.slice(first)
-  if (echo) return said.map(w => w.text).join(' ').replace(/\\n/g, '\n')
+  if (echo) {
+    const text = said.map(w => w.text).join(' ')
+    const flags = words.slice(0, first < 0 ? words.length : first).flatMap(w => [...w.text])
+    return flags.findLast(c => /[eE]/.test(c)) === 'e' ? unescaped(text, true).text : text
+  }
   return formatted(said[0], said.slice(1).map(w => w.text))
 }
 
@@ -155,7 +159,10 @@ const printsNoNewline = (stage: Word[]) => {
 /** One write a shell command makes: the file, whether the shell works its name out as it runs, the text, and for a sed -i its scripts. */
 export type ShellWrite = { file: string; expands?: boolean; text: string; replaces?: boolean; joins?: boolean; sed?: { scripts: string[]; ere: boolean; z: boolean; scriptFile: boolean } }
 
-const named = (w: Word) => ({ file: w.text, ...(w.expands ? { expands: true } : {}) })
+/** A file as one spelling: `./notes.md`, `a/./notes.md` and `a//notes.md` are what the shell opens without the extras. */
+const oneSpelling = (path: string) => path.replace(/\/{2,}/g, '/').replace(/(^|\/)(?:\.\/)+/g, '$1')
+
+const named = (w: Word) => ({ file: w.expands ? w.text : oneSpelling(w.text), ...(w.expands ? { expands: true } : {}) })
 
 /** The text a `cat` or `tee` gets on its input: a here-string or the body of a heredoc, when that is the last redirect of descriptor 0, which is the one the shell keeps; `</dev/stdin` reopens the same input. */
 const fedIn = (words: Word[], docs: string[]) => {

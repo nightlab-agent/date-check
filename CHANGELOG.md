@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- One file spelled two ways counts as one: a `sed -i` on `./notes.md` after a write to `notes.md` in the same command is judged, also `a/./notes.md` and `a//notes.md`. Before, it read as a missing file and its date was missed.
+- `echo` reads escapes only when `-e` is the last of `-e` and `-E`, as bash does, so `echo 'a\n2027-01-15'` opens no new line and is no longer refused. `echo -e` reads every escape, not only `\n`.
 - A heredoc with no exact end line runs to the end of the command, as bash takes it, so its date is judged; `EOF ` with a space after it is no end line. A here-string (`cat <<< "text" >> notes.md`) is read too. tests/review-ts-0.1.7.test.tsx fails on 3 cases without this. Not seen on a screen.
 - A redirect on another descriptor (`3</dev/null`) or a reopened `</dev/stdin` leaves a heredoc in place, so its date is judged. A line ending in an escaped `\|` does not run on into the next. tests/review-bash-parity.test.tsx fails on 3 cases without this. Not seen on a screen.
 - In `printf`, a `*` precision reads octal and hex and a negative one counts as none, a quoted argument (`"'A"`) is that character's number, `%#.0o` keeps its zero, `%.2b` and `%.2s` count bytes, and a number past 64 bits stops at the limit. Checked against bash 5.2's own printf; tests/review-bash-parity.test.tsx fails on 6 cases without this. Not seen on a screen.
