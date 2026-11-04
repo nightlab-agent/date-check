@@ -12,6 +12,10 @@
   and a heredoc. `tee --append`, `tee -a -i` and every file a `tee` names are read, and an
   echo after a heredoc on the heredoc line is judged. tests/shell-targets.test.tsx fails on 11
   cases without this. Not seen on a screen.
+- An `echo` or `printf` with its text outside quotes (`echo 2026-10-31 18:30 deploy >>
+  log.md`) is judged on what it prints. Before, the line began with the word `echo`, so no
+  stamp was found. An echo's quoted words join with spaces as the shell prints them.
+  tests/shell-forms.test.tsx fails on 5 cases without this. Not seen on a screen.
 
 ## 0.1.6 (2026-11-03)
 

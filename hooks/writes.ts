@@ -2,6 +2,7 @@
 
 import { commandIn, commandName, sedCommands, sedInPlace, shellParts, writtenText } from './sed'
 import { shellWords, stages, withoutRedirects } from './shell'
+import type { Word } from './shell'
 
 /** Files whose stamps are judged: Markdown and plain text, logs, and changelog-like names. Code is not. */
 export const isText = (path: string) =>
@@ -26,6 +27,18 @@ const outFiles = (part: string) => {
       files.push(...withoutRedirects(run.words.slice(1)).filter(w => w.quoted || !w.text.startsWith('-')).map(w => w.text))
   }
   return files.filter(f => f !== '/dev/null')
+}
+
+/**
+ * The text an `echo` or `printf` prints, quoted or not: an `echo`'s words as one line after its
+ * flags, a `printf`'s format and arguments as a line each (the format decides what goes where).
+ * A written `\\n` is a new line, as `echo -e` and `printf` make it.
+ */
+const printed = ([command, ...args]: Word[]) => {
+  const echo = commandName(command!) === 'echo'
+  const words = withoutRedirects(args)
+  const first = words.findIndex(w => w.quoted || !(echo ? /^-[neE]+$/ : /^--$/).test(w.text))
+  return (first < 0 ? [] : words.slice(first)).map(w => w.text).join(echo ? ' ' : '\n').replace(/\\n/g, '\n')
 }
 
 /** The file a `xargs sed -i` writes, which the pipe names when it runs: judged as a text file not read. */
@@ -60,8 +73,8 @@ export const shellWrites = (command: string): ShellWrite[] => {
     const first = stages(shellWords(part)).find(stage => stage.length)
     const run = first && commandIn(first)
     if (!run || !/^(?:echo|printf)$/.test(commandName(run.words[0]!))) continue
-    const said = [...part.matchAll(/(?:"((?:[^"\\]|\\.)*)"|'([^']*)')/g)].map(m => (m[1] ?? m[2] ?? '').replace(/\\n/g, '\n'))
-    for (const file of outFiles(part)) out.push({ file, text: said.length ? said.join('\n') : part })
+    const text = printed(run.words)
+    for (const file of outFiles(part)) out.push({ file, text })
   }
   return out
 }
