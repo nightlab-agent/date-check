@@ -6,7 +6,7 @@ const docMark = (n: number) => `${n}`
 /** The body in `docs` that a redirect's word stands for. */
 export const docOf = (word: string | undefined, docs: string[]) => docs[Number(/^(\d+)$/.exec(word ?? '')?.[1] ?? NaN)]
 
-/** The text of a heredoc whose body starts at `from`, and where the line after its end starts; undefined with no end line. */
+/** The text of a heredoc whose body starts at `from`, and where the line after its end starts. With no end line it runs to the end of the command, as bash takes it. */
 const docBody = (command: string, from: number, end: string, tabs: boolean) => {
   const lines: string[] = []
   for (let at = from; at <= command.length; ) {
@@ -14,8 +14,8 @@ const docBody = (command: string, from: number, end: string, tabs: boolean) => {
     const raw = command.slice(at, stop < 0 ? undefined : stop)
     const line = tabs ? raw.replace(/^\t+/, '') : raw
     if (line === end) return { text: lines.join('\n'), next: stop < 0 ? command.length : stop + 1 }
-    if (stop < 0) return undefined
     lines.push(line)
+    if (stop < 0) return { text: lines.join('\n'), next: command.length }
     at = stop + 1
   }
   return undefined
@@ -37,7 +37,7 @@ const arithmetic = (command: string, i: number) => {
  * quotes, comments left out. A heredoc's body is no part: it goes in `docs`, and `<<` keeps a word
  * that names it (docOf), so each heredoc stays in its place among the commands. As bash does, the
  * body starts on the line after the `<<` and ends at a line that is exactly the word (`<<-` takes
- * the tabs off). With no such line it is no heredoc: `$((1<<2))` is a shift.
+ * the tabs off). With no such line it runs to the end of the command; a `$((1<<2))` is a shift (arithmetic), never a heredoc.
  */
 export const shellParts = (command: string, docs: string[] = []): string[] => {
   const parts: string[] = []

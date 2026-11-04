@@ -2,16 +2,12 @@
 
 ## Unreleased
 
-### Fixed
-- A redirect on another descriptor (`3</dev/null`) or a reopened `</dev/stdin` leaves a heredoc in place, so its date is judged. A line ending in an escaped `\|` does not run on into the next.
-- In `printf`, a `*` precision reads octal and hex and a negative one counts as none, a quoted argument (`"'A"`) is that character's number, `%#.0o` keeps its zero, `%.2b` and `%.2s` count bytes, and a number past 64 bits stops at the limit.
-- A file written in several steps is judged as the shell leaves it: a `printf` or `echo -n` runs on into the next write, and `>` drops what an earlier step wrote.
-- `cat 0<<EOF` is read as a heredoc, and a quoted `'--'` ends printf's options.
-- The npm package carries hooks/fences.ts.
-- `printf` reads numbers and escapes as bash does: `%x` and `%o`, the `+`, space and `#` flags, `0x` and `0` arguments, `*` for a width, `%n`, `\\c` in `%b`, hex, unicode and octal escapes. Across 820 forms it matched bash's own printf on 818; the other two print a NUL.
-- A file name with an escaped bracket, star or dollar (`notes\\[1\\].md`) is that literal name.
-- `$((1<<x))` is a shift, not a heredoc, even when a later line reads `x`. A redirect may come before its command (`>notes.md cat <<EOF`). The last input redirect wins, so a `</dev/null` after a heredoc drops it. A line ending in a pipe goes on to the next.
-
+- A heredoc with no exact end line runs to the end of the command, as bash takes it, so its date is judged; `EOF ` with a space after it is no end line. A here-string (`cat <<< "text" >> notes.md`) is read too. tests/review-ts-0.1.7.test.tsx fails on 3 cases without this. Not seen on a screen.
+- A redirect on another descriptor (`3</dev/null`) or a reopened `</dev/stdin` leaves a heredoc in place, so its date is judged. A line ending in an escaped `\|` does not run on into the next. tests/review-bash-parity.test.tsx fails on 3 cases without this. Not seen on a screen.
+- In `printf`, a `*` precision reads octal and hex and a negative one counts as none, a quoted argument (`"'A"`) is that character's number, `%#.0o` keeps its zero, `%.2b` and `%.2s` count bytes, and a number past 64 bits stops at the limit. Checked against bash 5.2's own printf; tests/review-bash-parity.test.tsx fails on 6 cases without this. Not seen on a screen.
+- A file written in several steps is judged as the shell leaves it: a `printf` or `echo -n` runs on into the next write, and `>` drops what an earlier step wrote. `cat 0<<EOF` is read as a heredoc, and a quoted `'--'` ends printf's options. tests/review-shell-parser.test.tsx fails on 4 cases without this. Not seen on a screen.
+- `printf` reads numbers and escapes as bash does: `%x` and `%o`, the `+`, space and `#` flags, `0x` and `0` arguments, `*` for a width, `%n`, `\\c` in `%b`, hex, unicode and octal escapes. tests/printf-kinds.test.tsx fails on 11 cases without this. Not seen on a screen.
+- `$((1<<x))` is a shift, not a heredoc, even when a later line reads `x`. A redirect may come before its command (`>notes.md cat <<EOF`). The last input redirect wins, so a `</dev/null` after a heredoc drops it. A line ending in a pipe goes on to the next. A file name with an escaped bracket, star or dollar (`notes\\[1\\].md`) is that literal name. tests/command-forms.test.tsx fails on 5 cases without this. Not seen on a screen.
 - A `printf` is judged on what its format prints (`printf 'Planned for %s.\n' 2027-01-15` is a
   sentence): `%s`, `%b`, `%c`, whole numbers with their width and padding, `%%`, and the format
   used again while arguments are left. Before, each argument counted as a line of its own, so

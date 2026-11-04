@@ -46,6 +46,8 @@ const integer = (arg: string) => {
   return m[1] === '-' ? -value : value
 }
 
+/** The most padding worked out; past this a width only costs memory, and a string has a limit. */
+const WIDEST = 2 ** 20
 const UNSIGNED_MAX = 2n ** 64n - 1n
 const SIGNED_MAX = 2n ** 63n - 1n
 
@@ -62,7 +64,7 @@ const wholeNumber = (flags: string, width: number, precision: string | undefined
   const n = inRange(signed, value)
   const size = n < 0n ? -n : n
   const text = size.toString(kind === 'o' ? 8 : /x/i.test(kind) ? 16 : 10)
-  let digits = precision !== undefined && !Number(precision) && !size ? '' : text.padStart(Number(precision ?? 0), '0')
+  let digits = precision !== undefined && !Number(precision) && !size ? '' : text.padStart(Math.min(Number(precision ?? 0), WIDEST), '0')
   if (kind === 'X') digits = digits.toUpperCase()
   const prefix = !flags.includes('#') ? '' : kind === 'o' ? (digits.startsWith('0') ? '' : '0') : size && /x/i.test(kind) ? `0${kind}` : ''
   const sign = !signed ? '' : n < 0n ? '-' : flags.includes('+') ? '+' : flags.includes(' ') ? ' ' : ''
@@ -112,7 +114,7 @@ const formatted = (format: Word | undefined, args: string[]) => {
         return false
       }
       const b = kind === 'b' ? unescaped(arg, true) : undefined
-      out += shown(size < 0 ? `${flags}-` : flags, Math.abs(size), cut, kind, b?.text ?? arg)
+      out += shown(size < 0 ? `${flags}-` : flags, Math.min(Math.abs(size), WIDEST), cut, kind, b?.text ?? arg)
       if (b?.ended) return false
     }
     out += unescaped(format.text.slice(at)).text
@@ -155,10 +157,13 @@ export type ShellWrite = { file: string; expands?: boolean; text: string; replac
 
 const named = (w: Word) => ({ file: w.text, ...(w.expands ? { expands: true } : {}) })
 
-/** The text a `cat` or `tee` gets on its input: the body of a heredoc, when that is the last redirect of descriptor 0, which is the one the shell keeps; `</dev/stdin` reopens the same input. */
-const heredocIn = (words: Word[], docs: string[]) => {
+/** The text a `cat` or `tee` gets on its input: a here-string or the body of a heredoc, when that is the last redirect of descriptor 0, which is the one the shell keeps; `</dev/stdin` reopens the same input. */
+const fedIn = (words: Word[], docs: string[]) => {
   const at = words.findLastIndex((w, i) => w.redirect && /^0?</.test(w.text) && words[i + 1]?.text !== '/dev/stdin')
-  return at >= 0 && /^0?<<-?$/.test(words[at]!.text) ? docOf(words[at + 1]?.text, docs) : undefined
+  if (at < 0) return undefined
+  const how = words[at]!.text
+  if (/^0?<<<$/.test(how)) return `${words[at + 1]?.text ?? ''}\n`
+  return /^0?<<-?$/.test(how) ? docOf(words[at + 1]?.text, docs) : undefined
 }
 
 /** The text a command of a pipeline makes itself: what an `echo` or `printf` prints, or a `cat` or `tee` heredoc. */
@@ -166,7 +171,7 @@ const madeBy = (stage: Word[], docs: string[]) => {
   const run = commandIn(stage)
   if (!run) return undefined
   const name = commandName(run.words[0]!)
-  return /^(?:echo|printf)$/.test(name) ? printed(run.words) : /^(?:cat|tee)$/.test(name) ? heredocIn(stage, docs) : undefined
+  return /^(?:echo|printf)$/.test(name) ? printed(run.words) : /^(?:cat|tee)$/.test(name) ? fedIn(stage, docs) : undefined
 }
 
 /**

@@ -71,10 +71,14 @@ const usDaylight = (date: string) => {
   return (m > 3 || (m === 3 && d >= sunday(2, 2))) && (m < 11 || (m === 11 && d < sunday(10, 1)))
 }
 
-/** A line for a message: trimmed, cut at 120 units, never through the middle of an emoji. */
+/** A line for a message: trimmed, cut at 120 units, never through a character a reader sees as one (a flag, an emoji). */
 const shortLine = (line: string) => {
-  const cut = line.trim().slice(0, 120)
-  return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut
+  let cut = ''
+  for (const { segment } of new Intl.Segmenter().segment(line.trim())) {
+    if (cut.length + segment.length > 120) break
+    cut += segment
+  }
+  return cut
 }
 
 const build = (m: RegExpExecArray, at: number, line: string, where: Stamp['where']): Stamp | undefined => {

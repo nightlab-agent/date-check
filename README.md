@@ -101,7 +101,7 @@ and said the time was filled in from the clock as the file was written.
   when 01:30 happens twice, a local time is only called wrong if it is wrong both times.
 - It checks Write, Edit, and shell commands where `echo` or `printf` writes to
   a file with `>>`, `>`, `>|`, `&>>`, `1>` or `| tee` (`2>>` sends only errors,
-  so it is not a write of the text), where `cat` or `tee` writes a heredoc to one
+  so it is not a write of the text), where `cat` or `tee` writes a heredoc or a here-string to one
   (every heredoc in the command, also after `&&` or `;`), or where `sed -i`
   changes one (on a file that exists, the lines its substitution changes, judged
   as the same Edit would be; where the substitution cannot be read the way sed
@@ -144,17 +144,17 @@ year old and offered to rename it to `daily-brief-2026-11-01.md`.
 ## What it writes
 
 No files. It adds one line beside each prompt for Claude to read (the clock, above), and it
-reads the file a Write, an Edit or a shell write is about to change, to judge only the new lines. Nothing leaves your machine through this mod: it makes no network calls.
+reads the file a Write, an Edit or a shell write is about to change, to judge only the new lines. Nothing leaves your machine through this plugin: it makes no network calls.
 
 ## How it works
 
 - One hook, `prompt.submit`, which Claude Code runs as each prompt enters: it reads Claude
-  Code's clock and attaches the clock line to the prompt. A failure of the mod lets the
+  Code's clock and attaches the clock line to the prompt. A failure of the plugin lets the
   prompt through unchanged.
 - One hook, `tool.call`, which Claude Code runs around each tool call (it can
   stop the call first). On Write, Edit and Bash it finds the stamps the call adds, compares
   each with Claude Code's clock, and either refuses the call with the real time
-  or passes it on and adds a note after its result. A failure of the mod itself
+  or passes it on and adds a note after its result. A failure of the plugin itself
   never stops the call.
 
 ## Install

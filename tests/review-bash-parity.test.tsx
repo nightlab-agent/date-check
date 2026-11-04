@@ -36,7 +36,7 @@ passes('R6 comparison: the same prefix without a newline', `printf '%b%s\\n' '\\
 passes('R7: an unsigned overflow does not become a small integer', `printf '202%u-01-15\\n' -18446744073709551623 >notes.md`)
 passes('R7 comparison: the saturated unsigned value', `printf '202%u-01-15\\n' 18446744073709551615 >notes.md`)
 
-// Seen, not this change: this pair also fails/passes at the base.
+// R8.
 // A negative precision means no precision, so bash prints the whole date.
-refuses('seen: a negative precision does not truncate the date', `printf '%.*s\\n' -1 ${date} >notes.md`, {}, date)
-refuses('seen comparison: an omitted precision prints the date', `printf '%s\\n' ${date} >notes.md`, {}, date)
+refuses('R8: a negative precision does not truncate the date', `printf '%.*s\\n' -1 ${date} >notes.md`, {}, date)
+refuses('R8 comparison: an omitted precision prints the date', `printf '%s\\n' ${date} >notes.md`, {}, date)
