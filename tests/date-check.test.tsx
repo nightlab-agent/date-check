@@ -129,6 +129,15 @@ test('a stale time today goes through with a note; with staleNotes off, nothing 
   expect(r.context ?? []).toEqual([])
 })
 
+test('with staleNotes off a new file named for a past day is still refused, once', { options: { staleNotes: false } }, async ($, on) => {
+  const w = world(on)
+  const r = await write($, '/p/briefs/brief-2025-06-12.md', 'hello\n')
+  expect(r.deny).toContain('2025-06-12')
+  expect(w.ran).toEqual([])
+  expect(await write($, '/p/briefs/brief-2025-06-12.md', 'hello\n')).not.toHaveProperty('deny')
+  expect(w.ran).toEqual(['Write'])
+})
+
 test('comparison: with staleNotes on (the default) the same line gets the note', async ($, on) => {
   world(on)
   const r = await write($, '/p/log/2026-10-31.md', '- 09:00 morning check\n')

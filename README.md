@@ -108,6 +108,11 @@ and said the time was filled in from the clock as the file was written.
   reads it (a line range, the Nth match, `w`), the text it puts in, or a line `a`, `i` or
   `c` adds). A script read from a file (`-f`) is not read, so what it writes is not checked;
   a `-e` script beside it still is, by the text it puts in.
+- A command is read word by word, quotes resolved: a `>` in the echoed text is text, a
+  quoted name is one file, and a write after `then`, `do` or `(` counts. Not read: a
+  redirect on a compound command as a whole (`{ ...; } >> log.md`, `done >> log.md`).
+- A path the shell works out when it runs (`*.md`, `"$HOME/log.md"`) is not looked up, so
+  what is written there is judged alone, if the path as written ends in a text file's name.
 - `sed -i` is found behind settings such as `LC_ALL=C`, a path (`/usr/bin/sed`),
   `gsed`, and `env`, `command`, `sudo`, `timeout`, `nice`, `time` or `nohup`.
   After `xargs` it is checked only when the command feeding the pipe names a text
