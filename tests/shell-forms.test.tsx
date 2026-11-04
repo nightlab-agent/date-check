@@ -41,3 +41,19 @@ refuses('an unquoted echo to a quoted file', `echo ${L} >> "log.md"`)
 refuses('an unquoted echo with one quoted word', `echo ${L} "now" >> log.md`)
 refuses('an unquoted echo -n', `echo -n ${L} >> log.md`)
 passes('comparison: a stamp that is not the opening word stays a sentence', `echo Deploy on 2026-12-25 18:30 >> log.md`)
+
+// Shell syntax before the command word.
+refuses('then echo', `if true; then echo "${L}" >> log.md; fi`)
+refuses('do echo', `for i in 1; do echo "${L}" >> log.md; done`)
+refuses('else echo', `if false; then true; else echo "${L}" >> log.md; fi`)
+refuses('a subshell echo', `(echo "${L}" >> log.md)`)
+refuses('do sed -i', `for f in log.md; do sed -i 's/^- TBD/${L}/' log.md; done`, { 'log.md': '- TBD\n' })
+refuses('a subshell sed -i', `(sed -i 's/^- TBD/${L}/' log.md)`, { 'log.md': '- TBD\n' })
+passes('comparison: the word then in the echoed text is text', `echo "then 2026-12-25 18:30" >> log.md`)
+
+// A comment is not read as shell.
+refuses('comparison: a comment with no apostrophe', `# append the line\necho "${L}" >> log.md`)
+refuses('a comment with an apostrophe before the echo', `# don't lose this\necho "${L}" >> log.md`)
+refuses('a comment with an apostrophe after the echo', `echo "${L}" >> log.md # don't lose this\nls`)
+passes('a write inside a comment is not a write', `# echo "${L}" >> log.md`)
+refuses('a # inside a word is not a comment', `echo a#b; echo "${L}" >> log.md`)

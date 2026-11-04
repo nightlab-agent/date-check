@@ -16,6 +16,11 @@
   log.md`) is judged on what it prints. Before, the line began with the word `echo`, so no
   stamp was found. An echo's quoted words join with spaces as the shell prints them.
   tests/shell-forms.test.tsx fails on 5 cases without this. Not seen on a screen.
+- A write behind `then`, `do`, `else`, `if`, `while`, `until`, `!` or `{` in its own part of a
+  command is judged, and a comment is skipped, so an apostrophe in one (`# don't forget`) no
+  longer hides the command after it. A compound command with its redirect after the closing
+  word (`{ ...; } >> log.md`, `done >> log.md`) is still not read. tests/shell-forms.test.tsx
+  fails on 5 cases without this. Not seen on a screen.
 
 ## 0.1.6 (2026-11-03)
 

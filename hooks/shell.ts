@@ -1,7 +1,7 @@
 // The shell side of reading a command: its parts between separators and the words of one part,
 // cut only outside quotes, the way the shell itself reads them.
 
-/** The parts of a shell command between `&&`, `||`, `;`, a single `&` and new lines that sit outside quotes. */
+/** The parts of a shell command between `&&`, `||`, `;`, a single `&` and new lines that sit outside quotes, comments left out. */
 export const shellParts = (command: string): string[] => {
   const parts: string[] = []
   let cur = ''
@@ -24,6 +24,11 @@ export const shellParts = (command: string): string[] => {
     if (c === "'" || c === '"') {
       q = c
       cur += c
+      continue
+    }
+    // A comment runs to the end of its line: an apostrophe in it opens no quote.
+    if (c === '#' && /^$|[\s;&|(]/.test(command[i - 1] ?? '')) {
+      while (i + 1 < command.length && command[i + 1] !== '\n') i++
       continue
     }
     const two = command.slice(i, i + 2)

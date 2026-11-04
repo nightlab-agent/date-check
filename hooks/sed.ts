@@ -220,11 +220,13 @@ export const applySed = (text: string, scripts: string[], ere: boolean, z = fals
 const WRAPPERS: Record<string, string> = {
   env: 'uCS', command: '', sudo: 'ugCDhpUrtT', xargs: 'IiLlnPsdEa', timeout: 'ks', nice: 'n', time: 'fo', nohup: '',
 }
+/** Shell words a command can stand behind in its own part: `then echo ...`, `do sed -i ...`. */
+const KEYWORDS = new Set(['if', 'then', 'elif', 'else', 'while', 'until', 'do', '!', '{'])
 /** The name a word runs: `/usr/bin/sed` is sed; a quoted word runs none here. */
 export const commandName = (w: Word) => (w.quoted ? '' : w.text.split(/[\\/]/).pop()!.replace(/\.exe$/i, ''))
 
 /**
- * The command in one stage of a pipeline, past `VAR=x` assignments and the wrappers env, command,
+ * The command in one stage of a pipeline, past shell keywords, `VAR=x` assignments and the wrappers env, command,
  * sudo, xargs, timeout (and its duration), nice, time and nohup (with their options); `piped`: xargs runs it,
  * so more files, not known here, come from the pipe.
  */
@@ -234,6 +236,10 @@ export const commandIn = (words: Word[]): { words: Word[]; piped: boolean } | un
   while (i < words.length) {
     const w = words[i]!
     if (!w.quoted && /^[A-Za-z_]\w*=/.test(w.text)) {
+      i++
+      continue
+    }
+    if (!w.quoted && KEYWORDS.has(w.text)) {
       i++
       continue
     }
