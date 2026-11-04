@@ -55,11 +55,24 @@ export const sedCommands = (script: string): SedCmd[] => {
       continue
     }
     if ('aic'.includes(letter)) {
-      // GNU one-liner: the text runs to the end of the line, `;` included.
-      const end = script.indexOf('\n', i)
-      const text = script.slice(i + 1, end < 0 ? undefined : end).replace(/^\\?\s*/, '')
-      out.push({ kind: 'text', text })
-      i = end < 0 ? script.length : end
+      // The text runs to the end of the line, `;` included, and on over each line that ends in a
+      // backslash. Classic form: `a\` and the text from the next line; GNU one-liner: `a text`.
+      let j = i + 1
+      while (script[j] === ' ' || script[j] === '\t') j++
+      if (script[j] === '\\') j++
+      while (script[j] === ' ' || script[j] === '\t') j++
+      if (script[j] === '\n') j++
+      const lines: string[] = []
+      for (;;) {
+        const end = script.indexOf('\n', j)
+        const line = script.slice(j, end < 0 ? undefined : end)
+        const more = end >= 0 && /(?:^|[^\\])(?:\\\\)*\\$/.test(line)
+        lines.push(more ? line.slice(0, -1) : line)
+        j = end < 0 ? script.length : more ? end + 1 : end
+        if (!more) break
+      }
+      out.push({ kind: 'text', text: lines.join('\n') })
+      i = j
       continue
     }
     out.push({ kind: 'other', addr, letter })

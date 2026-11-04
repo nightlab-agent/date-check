@@ -63,7 +63,8 @@ export const shellWrites = (command: string): ShellWrite[] => {
   for (const part of shellParts(command.replace(/<<-?\s*['"]?([^\s'"<>;&|()]+)['"]?([^\n]*)\n[\s\S]*?\n\s*\1\s*$/gm, '$2'))) {
     const sed = sedInPlace(part)
     if (sed) {
-      const text = sed.scripts.flatMap(sedCommands).map(writtenText).filter((t): t is string => t !== undefined).join('\n')
+      // sed reads its scripts as one, a new line between them (`-e 'a\\' -e 'text'`).
+      const text = sedCommands(sed.scripts.join('\n')).map(writtenText).filter((t): t is string => t !== undefined).join('\n')
       if (text) for (const file of sed.files) out.push({ file, text, sed: { scripts: sed.scripts, ere: sed.ere, z: sed.z, scriptFile: sed.scriptFile } })
       // Run by xargs: the files come from the pipe, so the text it writes is judged alone, when the
       // pipe's source names text files (`grep -l TBD log.md`, `git ls-files '*.md'`); code is not judged.

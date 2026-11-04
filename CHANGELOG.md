@@ -35,6 +35,10 @@
 - A `-e` script beside a `sed -i -f` file is judged by the text it writes. Before, one `-f`
   dropped the whole command. tests/sed-forms.test.tsx fails on 4 cases without this. Not seen
   on a screen.
+- The `a\`, `i\` and `c\` form of `sed -i` with its text on the next line, a text continued
+  over lines ending in a backslash, and a text in the `-e` after `a\` are judged. Before, that
+  text was lost, and the README says these lines are judged. tests/sed-forms.test.tsx fails on
+  6 cases without this. Not seen on a screen.
 
 ## 0.1.6 (2026-11-03)
 

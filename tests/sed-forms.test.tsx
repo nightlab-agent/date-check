@@ -48,3 +48,16 @@ refuses('-e then -f', `sed -i -e 's/^- TBD/${L}/' -f fix.sed log.md`, TBD)
 refuses('--file= then -e', `sed -i --file=fix.sed -e 's/^- TBD/${L}/' log.md`, TBD)
 refuses('a glued -f then -e', `sed -i -ffix.sed -e 's/^- TBD/${L}/' log.md`, TBD)
 passes('with -f the file is not taken for a script: a date in its name adds no text', `sed -i -f fix.sed 2026-12-25.md`, { '2026-12-25.md': 'x\n' })
+
+// a, i and c: the text they add, in each way of spelling it.
+const X = { 'log.md': 'x\n' }
+refuses('comparison: a on one line', `sed -i '$a ${L}' log.md`, X)
+refuses('comparison: a with a backslash on one line', `sed -i '$a\\${L}' log.md`, X)
+refuses('a backslash, then the text on the next line', `sed -i '$a\\\n${L}' log.md`, X)
+refuses('i backslash, then the text on the next line', `sed -i '1i\\\n## 2026-10-31 18:30' CHANGELOG.md`, { CHANGELOG: 'x\n', 'CHANGELOG.md': 'x\n' })
+refuses('c backslash, then the text on the next line', `sed -i '1c\\\n${L}' log.md`, X)
+refuses('the second line of a continued text', `sed -i '$a\\\nfirst\\\n${L}' log.md`, X)
+refuses('a one-line a continued on the next line', `sed -i '$a first\\\n${L}' log.md`, X)
+refuses('a command after the text is read as a command', `sed -i -e '$a\\\nfirst\ns/^x/${L}/' log.md`, X)
+refuses('the text in the next -e', `sed -i -e '$a\\' -e '${L}' log.md`, X)
+passes('comparison: text that is a sentence is not a stamp', `sed -i '$a\\\nDeployed on 2026-12-25 18:30.' log.md`, X)
