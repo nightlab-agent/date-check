@@ -21,6 +21,9 @@
   longer hides the command after it. A compound command with its redirect after the closing
   word (`{ ...; } >> log.md`, `done >> log.md`) is still not read. tests/shell-forms.test.tsx
   fails on 5 cases without this. Not seen on a screen.
+- A shell `$'...'` quote keeps its `\'` and any `;` inside it when the command is cut into
+  parts, so what it writes is judged. tests/shell-forms.test.tsx fails on 2 cases without
+  this. Not seen on a screen.
 
 ## 0.1.6 (2026-11-03)
 

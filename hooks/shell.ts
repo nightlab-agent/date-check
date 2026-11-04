@@ -9,11 +9,11 @@ export const shellParts = (command: string): string[] => {
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!
     if (q) {
-      if (c === '\\' && q === '"' && i + 1 < command.length) {
+      if (c === '\\' && q !== "'" && i + 1 < command.length) {
         cur += c + command[++i]
         continue
       }
-      if (c === q) q = undefined
+      if (c === (q === '$' ? "'" : q)) q = undefined
       cur += c
       continue
     }
@@ -24,6 +24,12 @@ export const shellParts = (command: string): string[] => {
     if (c === "'" || c === '"') {
       q = c
       cur += c
+      continue
+    }
+    // `$'...'`: a backslash escapes in it, as in double quotes, and `'` ends it.
+    if (c === '$' && command[i + 1] === "'") {
+      q = '$'
+      cur += command[i] + command[++i]!
       continue
     }
     // A comment runs to the end of its line: an apostrophe in it opens no quote.

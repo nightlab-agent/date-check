@@ -57,3 +57,8 @@ refuses('a comment with an apostrophe before the echo', `# don't lose this\necho
 refuses('a comment with an apostrophe after the echo', `echo "${L}" >> log.md # don't lose this\nls`)
 passes('a write inside a comment is not a write', `# echo "${L}" >> log.md`)
 refuses('a # inside a word is not a comment', `echo a#b; echo "${L}" >> log.md`)
+
+// $'...': a backslash in it escapes, so \' does not end the quote.
+refuses('comparison: a $-quoted script with no escaped quote', `sed -i $'s/TBD/2026-10-31 18:30 ok/' log.md`, { 'log.md': 'TBD\n' })
+refuses('a $-quoted script with an escaped quote and a ;', `sed -i $'s/TBD/2026-10-31 18:30 it\\'s;/' log.md`, { 'log.md': 'TBD\n' })
+refuses('a $-quoted echo with an escaped quote and a ;', `echo $'${L} it\\'s; done' >> log.md`)
