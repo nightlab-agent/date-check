@@ -10,6 +10,7 @@
 | `hooks/register.tsx` | The hooks module. |
 | `hooks/shell.ts` | Reading a shell command's parts and words, quotes resolved. |
 | `hooks/sed.ts` | Working out the lines a `sed -i` changes. |
+| `hooks/writes.ts` | What a shell command writes: each file it names and the text it sends there. |
 | `tests/checklist.py`, `tests/typecheck.sh`, `tests/readme_settings.py` | The checks `tests/release.sh` runs. |
 | `tests/*.test.tsx` | The tests (`date-check.test.tsx` holds the three real mistakes; `review*.test.tsx` and `*-review.test.tsx` each hold a reported bug as a case that failed before the fix, beside a comparison case). |
 | `tests/release.sh` | The release check. |

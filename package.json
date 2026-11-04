@@ -26,6 +26,7 @@
     "hooks/sed.ts",
     "hooks/shell.ts",
     "hooks/stamps.ts",
+    "hooks/writes.ts",
     "CHANGELOG.md"
   ]
 }
