@@ -9,41 +9,102 @@ export const isText = (path: string) =>
   /\.(?:md|markdown|mdx|txt|text|rst|adoc|asciidoc|org|log)$/i.test(path) ||
   /(?:^|[/\\])(?:CHANGELOG|CHANGES|HISTORY|NEWS|RELEASES?|NOTES)$/i.test(path)
 
-/** The backslash escapes of a `printf` format or `%b` argument that can matter to a stamp. */
-const ESCAPES: Record<string, string> = { n: '\n', t: '\t', r: '\r', '\\': '\\', '"': '"', "'": "'" }
-const unescaped = (text: string) => text.replace(/\\(.)/g, (m, c: string) => ESCAPES[c] ?? m)
+/** The named backslash escapes of a `printf` format or `%b` argument. */
+const ESCAPES: Record<string, string> = { a: '\x07', b: '\b', e: '\x1b', E: '\x1b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v', '\\': '\\', '"': '"', "'": "'", '?': '?' }
+/** One backslash escape: hex, the two unicode forms, octal, or a single character. `%b` reads a `\\0` and up to three more octal digits, a format three in all. */
+const ESCAPE = (octal: string) => new RegExp(`\\\\(?:x([\\da-fA-F]{1,2})|u([\\da-fA-F]{1,4})|U([\\da-fA-F]{1,8})|(${octal})|([\\s\\S]))`, 'g')
+const IN_FORMAT = ESCAPE('[0-7]{1,3}')
+const IN_ARGUMENT = ESCAPE('0[0-7]{0,3}|[1-7][0-7]{0,2}')
 
-/** A `printf` directive: flags, width, precision and kind, with `%(...)T`, which prints the clock. Used only with `replace`. */
-const DIRECTIVE = /%(?:\([^)]*\))?([-+ 0#]*)(\d*)(?:\.(\d*))?([diouxXeEfFgGaAcsbqT%])/g
+const escapeValue = ([whole, hex, short, long, octal, c]: RegExpMatchArray) => {
+  const code = hex ?? short ?? long ? parseInt((hex ?? short ?? long)!, 16) : octal ? parseInt(octal, 8) & 0xff : undefined
+  return code !== undefined ? String.fromCodePoint(Math.min(code, 0x10ffff)) : ESCAPES[c!] ?? whole
+}
+
+/** `text` with its escapes worked out; in a `%b` argument (`stops`) a `\c` ends everything printf prints, which `ended` says. */
+const unescaped = (text: string, stops = false) => {
+  let out = ''
+  let at = 0
+  for (const m of text.matchAll(stops ? IN_ARGUMENT : IN_FORMAT)) {
+    out += text.slice(at, m.index)
+    at = m.index + m[0].length
+    if (stops && m[5] === 'c') return { text: out, ended: true }
+    out += stops && /["'?]/.test(m[5] ?? '') ? m[0] : escapeValue(m)
+  }
+  return { text: out + text.slice(at), ended: false }
+}
+
+/** A `printf` directive: flags, width, precision and kind, with `%(...)T`, which prints the clock. `%n` prints nothing and takes a variable's name; any other word stops printf. */
+const DIRECTIVE = /%(?:\([^)]*\))?([-+ 0#]*)(\d*|\*)(?:\.(\d*|\*))?([diouxXeEfFgGaAcsbqTn%])/g
+
+/** A whole number as `printf` reads it: decimal, `0x` hex or `0` octal, as far as it goes, so `2027x` is 2027 and `abc` is 0, each with an error bash prints elsewhere. */
+const integer = (arg: string) => {
+  const m = /^\s*([-+]?)(0[xX][\da-fA-F]+|0[0-7]*|[1-9]\d*)?/.exec(arg)!
+  const digits = m[2] ?? '0'
+  const value = BigInt(/^0[0-7]+$/.test(digits) ? `0o${digits.slice(1)}` : digits)
+  return m[1] === '-' ? -value : value
+}
+
+/** A whole number as its directive prints it. A negative number in an unsigned kind wraps at 64 bits, as bash does. */
+const wholeNumber = (flags: string, width: number, precision: string | undefined, kind: string, value: bigint) => {
+  const signed = /[di]/.test(kind)
+  const n = !signed && value < 0n ? value + 2n ** 64n : value
+  const size = n < 0n ? -n : n
+  const text = size.toString(kind === 'o' ? 8 : /x/i.test(kind) ? 16 : 10)
+  let digits = precision !== undefined && !Number(precision) && !size ? '' : text.padStart(Number(precision ?? 0), '0')
+  if (kind === 'X') digits = digits.toUpperCase()
+  const prefix = !flags.includes('#') || !size ? '' : kind === 'o' ? (digits.startsWith('0') ? '' : '0') : /x/i.test(kind) ? `0${kind}` : ''
+  const sign = !signed ? '' : n < 0n ? '-' : flags.includes('+') ? '+' : flags.includes(' ') ? ' ' : ''
+  const zeros = flags.includes('0') && !flags.includes('-') && precision === undefined
+  return sign + prefix + (zeros ? digits.padStart(width - sign.length - prefix.length, '0') : digits)
+}
 
 /** One argument as its directive prints it: `%s`, `%b`, `%c` and whole numbers as bash does, other kinds as written. */
-const shown = (flags: string, width: string, precision: string | undefined, kind: string, arg: string) => {
-  const digits = /[diu]/.test(kind) && /^\d*$/.test(arg)
-  const text = kind === 'b' ? unescaped(arg) : arg
-  const body = digits ? (arg || '0').padStart(Number(precision ?? 0), '0')
-    : kind === 'c' ? text.slice(0, 1)
-    : /[sb]/.test(kind) && precision !== undefined ? text.slice(0, Number(precision))
-    : text
-  if (flags.includes('-')) return body.padEnd(Number(width))
-  return body.padStart(Number(width), digits && flags.includes('0') ? '0' : ' ')
+const shown = (flags: string, width: number, precision: string | undefined, kind: string, arg: string) => {
+  const body = /[diouxX]/.test(kind) ? wholeNumber(flags, width, precision, kind, integer(arg))
+    : kind === 'c' ? arg.slice(0, 1)
+    : /[sb]/.test(kind) && precision !== undefined ? arg.slice(0, Number(precision))
+    : arg
+  return flags.includes('-') ? body.padEnd(width) : body.padStart(width)
 }
 
 /**
  * What a `printf` prints: its format filled from the arguments, and used again while arguments
  * are left. A format the shell works out as it runs (`"$FORMAT"`) with no directive in sight can put
  * its arguments anywhere: each is read alone on a line, so a stamp among them is still judged.
+ * The format's escapes are worked out around its directives, so `\x25d` stays text.
  */
 const formatted = (format: Word | undefined, args: string[]) => {
   if (!format) return ''
-  const template = unescaped(format.text)
   let next = 0
   let out = ''
+  const once = () => {
+    let at = 0
+    for (const m of format.text.matchAll(DIRECTIVE)) {
+      out += unescaped(format.text.slice(at, m.index)).text
+      at = m.index + m[0].length
+      const [, flags, width, precision, kind] = m as unknown as [string, string, string, string | undefined, string]
+      if (kind === '%') {
+        out += '%'
+        continue
+      }
+      const size = width === '*' ? Number(integer(args[next++] ?? '')) : Number(width)
+      const cut = precision === '*' ? args[next++] ?? '0' : precision
+      const arg = args[next++] ?? ''
+      if (kind === 'n') {
+        if (/^[A-Za-z_]\w*$/.test(arg)) continue
+        return false
+      }
+      const b = kind === 'b' ? unescaped(arg, true) : undefined
+      out += shown(size < 0 ? `${flags}-` : flags, Math.abs(size), cut, kind, b?.text ?? arg)
+      if (b?.ended) return false
+    }
+    out += unescaped(format.text.slice(at)).text
+    return true
+  }
   let from: number
-  do {
-    from = next
-    out += template.replace(DIRECTIVE, (_, flags: string, width: string, precision: string | undefined, kind: string) =>
-      kind === '%' ? '%' : shown(flags, width, precision, kind, args[next++] ?? ''))
-  } while (next > from && next < args.length)
+  do from = next
+  while (once() && next > from && next < args.length)
   return next === 0 && format.expands ? [out, ...args].join('\n') : out
 }
 
@@ -78,10 +139,10 @@ export type ShellWrite = { file: string; expands?: boolean; text: string; replac
 
 const named = (w: Word) => ({ file: w.text, ...(w.expands ? { expands: true } : {}) })
 
-/** The text a `cat` or `tee` gets on its input: the body of its last heredoc, as the shell gives it. */
+/** The text a `cat` or `tee` gets on its input: the body of a heredoc, when that is the last input redirect, which is the one the shell keeps. */
 const heredocIn = (words: Word[], docs: string[]) => {
-  const at = words.findLastIndex(w => w.redirect && /^0?<<-?$/.test(w.text))
-  return at < 0 ? undefined : docOf(words[at + 1]?.text, docs)
+  const at = words.findLastIndex(w => w.redirect && /^\d*</.test(w.text))
+  return at >= 0 && /^0?<<-?$/.test(words[at]!.text) ? docOf(words[at + 1]?.text, docs) : undefined
 }
 
 /** The text a command of a pipeline makes itself: what an `echo` or `printf` prints, or a `cat` or `tee` heredoc. */
@@ -89,7 +150,7 @@ const madeBy = (stage: Word[], docs: string[]) => {
   const run = commandIn(stage)
   if (!run) return undefined
   const name = commandName(run.words[0]!)
-  return /^(?:echo|printf)$/.test(name) ? printed(run.words) : /^(?:cat|tee)$/.test(name) ? heredocIn(run.words, docs) : undefined
+  return /^(?:echo|printf)$/.test(name) ? printed(run.words) : /^(?:cat|tee)$/.test(name) ? heredocIn(stage, docs) : undefined
 }
 
 /**

@@ -21,6 +21,17 @@ const docBody = (command: string, from: number, end: string, tabs: boolean) => {
   return undefined
 }
 
+/** Where the `$((...))` or `((...))` at `i` ends, on one line; -1 when none starts there. Its `<<` is a shift, never a heredoc. */
+const arithmetic = (command: string, i: number) => {
+  if (!command.startsWith('((', command[i] === '$' ? i + 1 : i)) return -1
+  let depth = 0
+  for (let at = i; at < command.length && command[at] !== '\n'; at++) {
+    if (command[at] === '(') depth++
+    if (command[at] === ')' && --depth === 0) return command[at - 1] === ')' ? at + 1 : -1
+  }
+  return -1
+}
+
 /**
  * The parts of a shell command between `&&`, `||`, `;`, a single `&` and new lines that sit outside
  * quotes, comments left out. A heredoc's body is no part: it goes in `docs`, and `<<` keeps a word
@@ -64,6 +75,12 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
       while (i + 1 < command.length && command[i + 1] !== '\n') i++
       continue
     }
+    const sum = arithmetic(command, i)
+    if (sum > i) {
+      cur += command.slice(i, sum)
+      i = sum - 1
+      continue
+    }
     const doc = c === '<' ? /^<<(-?)[ \t]*((?:'[^'\n]*'|"[^"\n]*"|\\.|[^\s'"\\<>;&|()])+)/.exec(command.slice(i)) : null
     if (doc) {
       const n = docs.push('') - 1
@@ -88,6 +105,8 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
       waiting = []
       i = at - 1
     }
+    // A line that ends in a pipe goes on to the next.
+    if (c === '\n' && /\|\s*$/.test(cur)) continue
     const two = command.slice(i, i + 2)
     if (two === '&&' || two === '||') {
       parts.push(cur)
@@ -212,7 +231,7 @@ export const shellWords = (part: string): Word[] => {
       }
     } else if (c === '\\' && i + 1 < part.length) {
       const n = part[i + 1]!
-      text += /[\s'"\\|;&]/.test(n) ? n : c + n
+      text += /[\s'"\\|;&*?[\]{}$`]/.test(n) ? n : c + n
       i++
     } else {
       if (/[*?[{$`]/.test(c)) expands = true

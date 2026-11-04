@@ -6,6 +6,9 @@
 - A file written in several steps is judged as the shell leaves it: a `printf` or `echo -n` runs on into the next write, and `>` drops what an earlier step wrote.
 - `cat 0<<EOF` is read as a heredoc, and a quoted `'--'` ends printf's options.
 - The npm package carries hooks/fences.ts.
+- `printf` reads numbers and escapes as bash does: `%x` and `%o`, the `+`, space and `#` flags, `0x` and `0` arguments, `*` for a width, `%n`, `\\c` in `%b`, hex, unicode and octal escapes. Across 820 forms it matched bash's own printf on 818; the other two print a NUL.
+- A file name with an escaped bracket, star or dollar (`notes\\[1\\].md`) is that literal name.
+- `$((1<<x))` is a shift, not a heredoc, even when a later line reads `x`. A redirect may come before its command (`>notes.md cat <<EOF`). The last input redirect wins, so a `</dev/null` after a heredoc drops it. A line ending in a pipe goes on to the next.
 
 - A `printf` is judged on what its format prints (`printf 'Planned for %s.\n' 2027-01-15` is a
   sentence): `%s`, `%b`, `%c`, whole numbers with their width and padding, `%%`, and the format

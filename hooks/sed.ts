@@ -248,6 +248,11 @@ export const commandIn = (words: Word[]): { words: Word[]; piped: boolean } | un
   let piped = false
   while (i < words.length) {
     const w = words[i]!
+    // A redirect may come before the command it belongs to: `>notes.md cat <<EOF`.
+    if (w.redirect) {
+      i += 2
+      continue
+    }
     if (!w.quoted && /^[A-Za-z_]\w*=/.test(w.text)) {
       i++
       continue
