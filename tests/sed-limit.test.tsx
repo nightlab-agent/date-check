@@ -3,7 +3,7 @@ import { bash, world } from './shell-world'
 
 const T = { timeoutMs: 120_000 }
 const times = (n: number, f: (i: number) => string) => Array.from({ length: n }, (_, i) => f(i)).join('; ')
-const notes = (first: string) => `${first}\n${'z'.repeat(4 * 1024 * 1024 - first.length - 1)}\n`
+const notes = (first: string) => `${first}\n${'z'.repeat(4 * 1024 * 1024 - first.length - 2)}\n`
 const nomatch = (f: string, n = 33) => times(n, i => `sed -i 's/^nothing${i}$/x/' ${f}`)
 
 // A file that is never judged spends none of the shared limit.

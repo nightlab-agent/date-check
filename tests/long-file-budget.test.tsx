@@ -51,7 +51,7 @@ for (const [name, cmd] of [
   })
 
 // Past the limit a sed is left out: what was worked out stays, and an unmatched sed is never read as a write.
-const notes = (first: string) => `${first}\n${'z'.repeat(4 * 1024 * 1024 - first.length - 1)}\n`
+const notes = (first: string) => `${first}\n${'z'.repeat(4 * 1024 * 1024 - first.length - 2)}\n`
 test('33 seds that match nothing on a 4 MiB file are not refused', T, async ($, on) => {
   world(on, { 'notes.md': notes('ok') })
   expect((await bash($, times(33, () => `sed -i 's/^UNUSED$/2027-01-15/' notes.md`))).deny).toBeUndefined()

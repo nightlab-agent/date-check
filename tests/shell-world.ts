@@ -14,6 +14,8 @@ export const world = (on: On, files: Record<string, string> = {}) => {
   on('fs.read', (_, e) => {
     const t = fs.get(at(e.path))
     if (t === undefined) throw new Error('ENOENT')
+    // The engine's declared limit: a read over 4 MiB rejects.
+    if (new TextEncoder().encode(t).length > 4 * 1024 * 1024) throw new Error('EFBIG')
     return { value: t }
   })
   on('tool.call', () => ({ result: 'ok' }) as never)
