@@ -38,3 +38,19 @@ test('the comparison: a date appended after a skipped fence on a short file is s
   world(on, { 'notes.md': 'a\n' })
   expect((await bash($, `false && echo '${F}' >>notes.md; echo 2027-01-15 >>notes.md`)).deny ?? '').toContain('2027-01-15')
 })
+
+const seds = (n: number) => times(n, i => `sed -i 's/note ${i} /item ${i} /' ${C}`)
+for (const [name, cmd] of [
+  ['a fence step then 100 seds', () => `false && ${e(F)}; ${seds(100)}`],
+  ['a plain append then 100 seds', () => `${e('x')}; ${seds(100)}`],
+  ['180 seds', () => seds(180)],
+] as const)
+  test(`${name} on a 3.9 MB file stay inside the hook time`, T, async ($, on) => {
+    world(on, { [C]: big })
+    expect((await timed($, cmd())).ms).toBeLessThan(10000)
+  })
+
+test('past the limit on sed work a date in a late sed step is still judged', T, async ($, on) => {
+  world(on, { [C]: big })
+  expect((await timed($, `${seds(100)}; sed -i 's/note 200 /2027-01-15 /' ${C}`)).deny ?? '').toContain('2027-01-15')
+})

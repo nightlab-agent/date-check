@@ -24,3 +24,8 @@ test('the comparison: a date alone on its line on such a path is refused', async
   world(on, {})
   expect((await bash($, `printf 'a\\n' >>"$D/notes.md"; printf '2027-01-15\\n' >>"$D/notes.md"`)).deny ?? '').toContain('2027-01-15')
 })
+
+test('a cd between two printfs makes two files, so the second is read alone', async ($, on) => {
+  world(on, { 'notes.md': 'a\n' })
+  expect((await bash($, `printf 'Due ' >>notes.md; cd sub; printf '2027-01-15\\n' >>notes.md`)).deny ?? '').toContain('2027-01-15')
+})

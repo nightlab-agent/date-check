@@ -51,6 +51,8 @@ const readAt = async ($: EngineInterface, file: string) => {
 const STATES = 16
 /** How much of a command's earlier text is read whole again, for its sed and overwrite steps: the hook has 10 s. */
 const READ_BYTES = 8 * 1024 * 1024
+/** How much text a command's seds may run over, the steps' own texts being judged past that: the hook has 10 s. */
+const SED_BYTES = 128 * 1024 * 1024
 
 /** Where a reading of `text` ends, going on from `start`. */
 const fenceEnd = (text: string, start?: FenceEnd) => fencesFrom(text.split(/\r?\n/), start).end
@@ -87,10 +89,12 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
     return end
   }
   let spent = 0
+  let sedBytes = 0
   // The text with each step that moved a fence left out: what a sed reads when those were skipped.
   let plain = before
   if (writes.some(w => !w.sed)) endNow()
   for (const w of writes) {
+    if (w.sed && (sedBytes += after.length) > SED_BYTES) return undefined
     if (after !== before && (w.sed || w.replaces) && spent <= READ_BYTES) {
       spent += after.length
       also.push(after)
@@ -208,12 +212,12 @@ async function changes($: EngineInterface, x: Call): Promise<Change[]> {
       // A file that exists or is made here: its text after the command's writes in order, judged as an Edit is.
       const r = exists === undefined ? undefined : await applied($, file, ws, exists)
       const created = exists === false
-      // No text could be worked out: each write's own text is one reading, as a skipped step leaves it.
-      // A write with no line end runs on into the next, so the two are one reading.
+      // No text could be worked out: each write's own text is one reading, as a skipped step leaves
+      // it, and one with no line end runs on into the next while the path means one place.
       const also: string[] = []
       ws.forEach((v, i) => {
         const prev = ws[i - 1]
-        if (prev?.joins && !prev.sed && !prev.text.endsWith('\n') && !v.sed && !v.replaces) also[also.length - 1] += v.text
+        if (prev?.joins && !moved && !prev.sed && !prev.text.endsWith('\n') && !v.sed && !v.replaces) also[also.length - 1] += v.text
         else also.push(v.text)
       })
       out.push(r ? { ...r, created } : { file, before: '', after: also.join('\n'), also, created })
