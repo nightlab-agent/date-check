@@ -7,7 +7,7 @@ then only the files it points to.
 One hooks module and its helpers, no dependencies: a `tool.call` hook on Write, Edit and Bash.
 `hooks/stamps.ts` (pure) finds the stamps in the lines a call adds, leaving out the code fences
 `hooks/fences.ts` marks, and judges each
-against `$.clock.now()`; `hooks/shell.ts` reads a shell command's words, `hooks/writes.ts` finds what it writes and `hooks/sed.ts`
+against `$.clock.now()`; `hooks/shell.ts` reads a shell command's words, `hooks/writes.ts` finds what it writes, `hooks/steps.ts` works out each file's text step by step and `hooks/sed.ts`
 works out what a `sed -i` changes; `hooks/register.tsx` refuses a call that adds a stamp in
 the future (once per file and text), refuses a new file whose name is a day that has
 passed (once per file), and adds a note after one that adds a stale stamp. It also
