@@ -53,7 +53,7 @@ const STATES = 16
 const READ_BYTES = 8 * 1024 * 1024
 /** How much text a command's appended lines may hold, one copy for each way a text ends: a hook shares the machine. */
 const KEPT_BYTES = 256 * 1024 * 1024
-/** How much text a command's seds may run over, the steps' own texts being judged past that: the hook has 10 s. */
+/** How much text the seds on one file may run over, the later ones being left out: the hook has 10 s. */
 const SED_BYTES = 128 * 1024 * 1024
 
 /** Where a reading of `text` ends, going on from `start`. */
@@ -97,7 +97,7 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   let plain = before
   if (writes.some(w => !w.sed)) endNow()
   for (const w of writes) {
-    if (w.sed && (sedBytes += after.length) > SED_BYTES) return undefined
+    if (w.sed && (sedBytes += after.length) > SED_BYTES) continue
     if (after !== before && (w.sed || w.replaces) && spent <= READ_BYTES) {
       spent += after.length
       also.push(after)

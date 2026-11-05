@@ -50,7 +50,18 @@ for (const [name, cmd] of [
     expect((await timed($, cmd())).ms).toBeLessThan(10000)
   })
 
-test('past the limit on sed work a date in a late sed step is still judged', T, async ($, on) => {
-  world(on, { [C]: big })
-  expect((await timed($, `${seds(100)}; sed -i 's/note 200 /2027-01-15 /' ${C}`)).deny ?? '').toContain('2027-01-15')
+// Past the limit a sed is left out: what was worked out stays, and an unmatched sed is never read as a write.
+const notes = (first: string) => `${first}\n${'z'.repeat(4 * 1024 * 1024 - first.length - 1)}\n`
+test('33 seds that match nothing on a 4 MiB file are not refused', T, async ($, on) => {
+  world(on, { 'notes.md': notes('ok') })
+  expect((await bash($, times(33, () => `sed -i 's/^UNUSED$/2027-01-15/' notes.md`))).deny).toBeUndefined()
+})
+test('a date an early sed makes is judged when later seds pass the limit', T, async ($, on) => {
+  world(on, { 'notes.md': notes('YEAR-01-15') })
+  const c = `sed -i 's/^YEAR/2027/' notes.md; ${times(32, i => `sed -i 's/^nothing${i}$/x/' notes.md`)}`
+  expect((await bash($, c)).deny ?? '').toContain('2027-01-15')
+})
+test('a line appended after the limit is still judged', T, async ($, on) => {
+  world(on, { 'notes.md': notes('ok') })
+  expect((await bash($, `${times(33, i => `sed -i 's/^nothing${i}$/x/' notes.md`)}; echo 2027-01-15 >>notes.md`)).deny ?? '').toContain('2027-01-15')
 })
