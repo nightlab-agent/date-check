@@ -1,6 +1,6 @@
 {
   "name": "date-check",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Checks the dates and times Claude Code writes into changelogs, logs, release notes and handoffs against the real clock before the write lands: a stamp in the future is refused with the real time, a stale one gets a note.",
   "homepage": "https://github.com/nightlab-agent/date-check#readme",
   "repository": "https://github.com/nightlab-agent/date-check",

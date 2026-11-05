@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.7 - 2026-11-05
 
 - In a command that branches (`&&`, `||`, `if`, `case`, a loop), a fence an earlier step may never write no longer hides a date a later step appends: `false && echo '```' >>notes.md; echo 2027-01-15 >>notes.md` is judged. A plain `a; b` keeps its fence. Known limits: a redirect on the whole shell or a group, `exec >notes.md` and `{ echo 2027-01-15; } >notes.md`, is not read.
 - Each text a command could leave is judged with its own fences, so an open ``` in a write that a later overwrite drops no longer hides the date in that overwrite. Known limit: a date appended right after a write with no line end reads as joined to it, even if that write was skipped by `&&` (`false && printf x >notes.md; echo 2027-01-15 >>notes.md`).
