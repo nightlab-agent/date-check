@@ -51,6 +51,8 @@ const readAt = async ($: EngineInterface, file: string) => {
 const STATES = 16
 /** How much of a command's earlier text is read whole again, for its sed and overwrite steps: the hook has 10 s. */
 const READ_BYTES = 8 * 1024 * 1024
+/** How much text a command's appended lines may hold, one copy for each way a text ends: a hook shares the machine. */
+const KEPT_BYTES = 256 * 1024 * 1024
 /** How much text a command's seds may run over, the steps' own texts being judged past that: the hook has 10 s. */
 const SED_BYTES = 128 * 1024 * 1024
 
@@ -90,6 +92,7 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   }
   let spent = 0
   let sedBytes = 0
+  let kept = 0
   // The text with each step that moved a fence left out: what a sed reads when those were skipped.
   let plain = before
   if (writes.some(w => !w.sed)) endNow()
@@ -122,6 +125,8 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
           if (spent > READ_BYTES) continue
           spent += text.length
         }
+        if (kept > KEPT_BYTES) continue
+        kept += text.length
         also.push(step(text)!)
       }
     }
