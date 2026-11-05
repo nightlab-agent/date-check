@@ -98,10 +98,12 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   let plain = before
   if (writes.some(w => !w.sed)) endNow()
   for (const w of writes) {
-    if (unknown) {
+    // An overwrite says the whole text again, so the steps after it can be worked out.
+    if (unknown && !w.replaces) {
       alone.push(w.text)
       continue
     }
+    unknown = false
     const commands = w.sed ? Math.max(1, w.sed.scripts.reduce((n, s) => n + sedCommands(s).length, 0)) : 0
     if (w.sed) {
       // Past a sed that cannot be run the text is unknown: what was worked out stays judged, and this

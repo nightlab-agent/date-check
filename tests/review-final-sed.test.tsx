@@ -45,3 +45,12 @@ test('a replacement after an unworked sed that matches nothing is refused once (
   expect((await bash($, c)).deny ?? '').toContain(date)
   expect((await bash($, c)).deny).toBeUndefined()
 })
+
+test('an overwrite after an unworked sed makes the text known: a later sed is run on it', async ($, on) => {
+  world(on, { 'notes.md': 'ok\n' })
+  expect((await bash($, "sed -i '$a ok' notes.md; echo 'YEAR-01-15' >notes.md; sed -i 's/YEAR/2027/' notes.md")).deny ?? '').toContain(date)
+})
+test('comparison the same overwrite and sed with no unworked sed', async ($, on) => {
+  world(on, { 'notes.md': 'ok\n' })
+  expect((await bash($, "echo 'YEAR-01-15' >notes.md; sed -i 's/YEAR/2027/' notes.md")).deny ?? '').toContain(date)
+})
