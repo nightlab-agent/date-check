@@ -51,16 +51,19 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   const before = exists ? await readAt($, file) : ''
   if (before === undefined) return undefined
   let after: string | undefined = before
-  // What this command wrote and a later step would drop stays in the reading: that step may never
-  // run (`&&`, `if`, `exit`, `set -e`, a killed command), and a refusal only asks for the text again.
-  let dropped = ''
+  // A step of this command may never run (`&&`, `if`, `exit`, `set -e`, a killed command), so each
+  // reading it could leave is judged on its own, each with its own fences; a refusal only asks for
+  // the text again.
+  const also: string[] = []
   for (const w of writes) {
-    if (after !== before && (w.sed || w.replaces)) dropped += `${after}\n`
+    if (after !== before && (w.sed || w.replaces)) also.push(after)
+    const line = `${w.text}${w.joins || w.text.endsWith('\n') ? '' : '\n'}`
     if (w.sed) after = w.sed.scriptFile ? undefined : applySed(after, w.sed.scripts, w.sed.ere, w.sed.z)
-    else after = `${w.replaces ? '' : after}${w.text}${w.joins || w.text.endsWith('\n') ? '' : '\n'}`
+    else if (w.replaces) after = line
+    else after = `${after}${line}`
     if (after === undefined) return undefined
   }
-  return { file, before, after: dropped + after }
+  return { file, before, after, also }
 }
 
 /** The directory changes in a shell command (`cd a`, `(pushd b`): after one, a relative path means no one place. */
@@ -97,7 +100,7 @@ async function placed($: EngineInterface, file: string, moves: string[] = []): P
   return drive || network ? one.toLowerCase() : one
 }
 
-type Change = { file: string; before: string; after: string; created?: boolean }
+type Change = { file: string; before: string; after: string; also?: string[]; created?: boolean }
 
 /** What a call changes, file by file: each file's text before and after it (a shell command may write several). */
 async function changes($: EngineInterface, x: Call): Promise<Change[]> {
@@ -257,7 +260,9 @@ export const register: Register = (on, options: Options = {}) => {
         const name = w.created ? judgeName(w.file, now, limits) : undefined
         // Bare times in a file named for a later day are a plan for that day, not stamps.
         const day = dateOfFile(w.file)
-        const verdicts = w.after ? judge(newStamps(w.before, w.after, day && day <= dayOf(now) ? day : undefined), now, limits) : []
+        const texts = [w.after, ...(w.also ?? [])].filter(Boolean)
+        const found = texts.flatMap(t => judge(newStamps(w.before, t, day && day <= dayOf(now) ? day : undefined), now, limits))
+        const verdicts = found.filter((v, i) => found.findIndex(o => o.stamp.text === v.stamp.text && o.stamp.line === v.stamp.line) === i)
         judged.push({ file: w.file, at: '', verdicts, name })
       }
     } catch {

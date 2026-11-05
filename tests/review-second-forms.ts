@@ -99,6 +99,12 @@ export const forms = [
   ['an unquoted heredoc joins a continued line', `cat <<EOF >notes.md\nPlanned for \\\n${date}\nEOF`, `Planned for ${date}\n`, false],
   ['comparison: a quoted heredoc keeps the lines apart', `cat <<'EOF' >notes.md\nPlanned for \\\n${date}\nEOF`, `Planned for \\\n${date}\n`, true],
   ['an empty heredoc adds no new line', `printf 'Planned for ' >notes.md; cat <<EOF >>notes.md\nEOF\necho '${date}' >>notes.md`, `Planned for ${date}\n`, false],
+  ['a dropped fence hides nothing after an overwrite', `echo '\`\`\`' >notes.md; echo ${date} >notes.md`, `${date}\n`, true],
+  ['comparison: a dropped plain line', `echo x >notes.md; echo ${date} >notes.md`, `${date}\n`, true],
+  // Known limit: a date appended after a write with no line end reads as joined to it, skipped or not.
+  // Refusing here would refuse every sentence built that way.
+  ['a date after a skipped write with no line end reads as joined', `false && printf x >notes.md; echo ${date} >>notes.md`, `${date}\n`, false],
+  ['comparison: a skipped step that writes nothing', `false && printf '' >notes.md; echo ${date} >>notes.md`, `${date}\n`, true],
 ] as const
 
 export const characters = ['🇺🇸', '👩‍💻', '👍🏽', 'e\u0301'] as const

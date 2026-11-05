@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Each text a command could leave is judged with its own fences, so an open ``` in a write that a later overwrite drops no longer hides the date in that overwrite. Known limit: a date appended right after a write with no line end reads as joined to it, even if that write was skipped by `&&` (`false && printf x >notes.md; echo 2027-01-15 >>notes.md`).
 - A date a command writes is judged even when a later step of it drops the text: `echo '2027-01-15' >notes.md; false && echo ok >notes.md`, and the same under `if`, a loop, `exit` or a `sed -i`. Which steps run cannot be read from the command, and a refused text goes through when written again.
 - A `#` right after an escaped space or a joined line is part of the word, so `echo '2027-01-15'\ #x >notes.md` is judged. A `$'...'` word no longer makes the next `printf` lose its escapes.
 - An unquoted heredoc joins a line ending in a backslash; an empty heredoc adds no new line. A fence closes only on a line of its own mark, so a mixed ``` ```~ ``` stays inside it. tests/review-second-forms.ts holds each form, checked by tests/review-second-bash.ts against real Bash and by the test run against the hook.
