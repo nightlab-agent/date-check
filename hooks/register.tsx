@@ -96,10 +96,14 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   let plain = before
   if (writes.some(w => !w.sed)) endNow()
   for (const w of writes) {
-    if (w.sed && (work.sed += after.length * Math.max(1, w.sed.scripts.reduce((n, s) => n + sedCommands(s).length, 0))) > SED_BYTES) {
-      // Left out only where a run would be needed: one that cannot be run reads its own text, as below the limit.
-      if (w.sed.scriptFile || applySed('x\n', w.sed.scripts, w.sed.ere, w.sed.z) === undefined) return undefined
-      continue
+    const commands = w.sed ? Math.max(1, w.sed.scripts.reduce((n, s) => n + sedCommands(s).length, 0)) : 0
+    if (w.sed) {
+      // A sed that cannot be run is judged on its own text and leaves what was worked out; it spends nothing.
+      if (w.sed.scriptFile || applySed('x\n', w.sed.scripts, w.sed.ere, w.sed.z) === undefined) {
+        also.push(w.text)
+        continue
+      }
+      if ((work.sed += after.length * commands) > SED_BYTES) continue
     }
     if (after !== before && (w.sed || w.replaces) && spent <= READ_BYTES) {
       spent += after.length
@@ -111,13 +115,17 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
     if (w.sed) {
       const earlier = states.slice(0, -1)
       for (const text of earlier.length < STATES ? earlier : [before, ...earlier.slice(2 - STATES)]) {
-        if (spent > READ_BYTES) break
+        if (spent > READ_BYTES || work.sed > SED_BYTES) break
         spent += text.length
+        work.sed += text.length * commands
         const left = step(text)
         if (left !== undefined) also.push(left)
       }
-      const left = plain === after || spent > READ_BYTES ? undefined : step(plain)
-      if (left !== undefined) also.push(left)
+      if (plain !== after && spent <= READ_BYTES && work.sed <= SED_BYTES) {
+        work.sed += plain.length * commands
+        const left = step(plain)
+        if (left !== undefined) also.push(left)
+      }
     } else if (!w.replaces && after.endsWith('\n')) {
       // Text with no line end joins what comes next, so a skipped step leaves the same words only then.
       const here = textKey(endNow(), after)
@@ -138,8 +146,12 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
     const from = after === '' || after.endsWith('\n') ? at : undefined
     if (!appends) lastLine = undefined
     const shared = plain === after
-    after = step(after)
-    if (after === undefined) return undefined
+    const next = step(after)
+    if (next === undefined) {
+      also.push(w.text)
+      continue
+    }
+    after = next
     states.push(after)
     end = from && fenceEnd(line, from)
     if (end) endNow()
