@@ -3,12 +3,14 @@
 // Run from the repo root: bun tests/review-second-bash.ts
 import { strict as assert } from 'node:assert'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { characters, forms, prefix } from './review-second-forms'
+import { forms as skipped } from './shell-skipped-forms'
 
-const check = (name: string, command: string, text: string, file = 'notes.md') => {
+const check = (name: string, command: string, text: string, file = 'notes.md', files: Record<string, string> = {}) => {
   const dir = mkdtempSync('/tmp/date-check-second-review-')
   try {
+    for (const [at, body] of Object.entries(files)) writeFileSync(`${dir}/${at}`, body)
     const result = spawnSync('bash', ['--noprofile', '--norc', '-c', command], {
       cwd: dir, encoding: 'utf8', timeout: 10000,
       env: { PATH: '/usr/bin:/bin', LC_ALL: 'C.UTF-8' },
@@ -24,8 +26,9 @@ const check = (name: string, command: string, text: string, file = 'notes.md') =
 }
 
 for (const [name, command, text, , file] of forms) check(name, command, text, file)
+for (const [name, command, text, , file, files] of skipped as readonly (readonly [string, string, string, boolean, string?, Record<string, string>?])[]) check(name, command, text, file, files)
 for (const character of characters) {
   const line = `${prefix}${character} tail`
   check(`whole character ${character}`, `printf '%s\\n' '${line}' >notes.md`, `${line}\n`)
 }
-console.log(`Bash parity: ${forms.length + characters.length} file contents matched`)
+console.log(`Bash parity: ${forms.length + skipped.length + characters.length} file contents matched`)

@@ -46,8 +46,11 @@ const readAt = async ($: EngineInterface, file: string) => {
   }
 }
 
+/** A word that lets a later step run when an earlier one did not. Inside quotes it only adds one refusal. */
+const BRANCHES = /&&|\|\||\b(?:if|case|for|while|until)\b/
+
 /** One file's text before and after a shell command's writes to it; undefined when it cannot be read or applied. */
-async function applied($: EngineInterface, file: string, writes: ShellWrite[], exists: boolean) {
+async function applied($: EngineInterface, file: string, writes: ShellWrite[], exists: boolean, branches: boolean) {
   const before = exists ? await readAt($, file) : ''
   if (before === undefined) return undefined
   let after: string | undefined = before
@@ -58,6 +61,9 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   for (const w of writes) {
     if (after !== before && (w.sed || w.replaces)) also.push(after)
     const line = `${w.text}${w.joins || w.text.endsWith('\n') ? '' : '\n'}`
+    // In a command that branches, the steps before this one may be the ones that never ran: their
+    // fence must not hide this text. A plain `a; b` runs both, and a killed command writes no b.
+    if (branches && !w.sed && !w.replaces && after !== before && after.endsWith('\n')) also.push(`${before}${line}`)
     if (w.sed) after = w.sed.scriptFile ? undefined : applySed(after, w.sed.scripts, w.sed.ere, w.sed.z)
     else if (w.replaces) after = line
     else after = `${after}${line}`
@@ -124,6 +130,7 @@ async function changes($: EngineInterface, x: Call): Promise<Change[]> {
     // variable, not under
     // `~` (the engine does not expand it) and not after a `cd` in the same command.
     const moved = movesDir(x.command)
+    const branches = BRANCHES.test(x.command)
     const out: Change[] = []
     for (const file of [...new Set(all.map(v => v.file))]) {
       let ws = all.filter(v => v.file === file)
@@ -136,9 +143,11 @@ async function changes($: EngineInterface, x: Call): Promise<Change[]> {
       if (exists === false) ws = made < 0 ? [] : ws.slice(made)
       if (!ws.length) continue
       // A file that exists or is made here: its text after the command's writes in order, judged as an Edit is.
-      const r = exists === undefined ? undefined : await applied($, file, ws, exists)
+      const r = exists === undefined ? undefined : await applied($, file, ws, exists, branches)
       const created = exists === false
-      out.push(r ? { ...r, created } : { file, before: '', after: ws.map(v => v.text).join('\n'), created })
+      // No text could be worked out: each write's own text is one reading, as a skipped step leaves it.
+      const also = branches ? ws.map(v => v.text) : undefined
+      out.push(r ? { ...r, created } : { file, before: '', after: ws.map(v => v.text).join('\n'), also, created })
     }
     return out
   }

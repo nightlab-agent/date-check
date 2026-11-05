@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- In a command that branches (`&&`, `||`, `if`, `case`, a loop), a fence an earlier step may never write no longer hides a date a later step appends: `false && echo '```' >>notes.md; echo 2027-01-15 >>notes.md` is judged. A plain `a; b` keeps its fence. Known limits: a redirect on the whole shell or a group, `exec >notes.md` and `{ echo 2027-01-15; } >notes.md`, is not read.
 - Each text a command could leave is judged with its own fences, so an open ``` in a write that a later overwrite drops no longer hides the date in that overwrite. Known limit: a date appended right after a write with no line end reads as joined to it, even if that write was skipped by `&&` (`false && printf x >notes.md; echo 2027-01-15 >>notes.md`).
 - A date a command writes is judged even when a later step of it drops the text: `echo '2027-01-15' >notes.md; false && echo ok >notes.md`, and the same under `if`, a loop, `exit` or a `sed -i`. Which steps run cannot be read from the command, and a refused text goes through when written again.
 - A `#` right after an escaped space or a joined line is part of the word, so `echo '2027-01-15'\ #x >notes.md` is judged. A `$'...'` word no longer makes the next `printf` lose its escapes.

@@ -50,12 +50,15 @@ const docBody = (command: string, from: number, end: string, tabs: boolean, cont
   let text = ''
   for (let at = from; at <= command.length; ) {
     let stop = command.indexOf('\n', at)
-    let raw = command.slice(at, stop < 0 ? undefined : stop)
-    while (continues && stop >= 0 && /(?<!\\)(?:\\\\)*\\$/.test(raw)) {
+    // Joined as pieces, read at each one's end: a joined line copied whole at each join costs the square of the lines.
+    const pieces = [command.slice(at, stop < 0 ? undefined : stop)]
+    while (continues && stop >= 0 && escapedAt(pieces[pieces.length - 1]!, pieces[pieces.length - 1]!.length)) {
       const more = command.indexOf('\n', stop + 1)
-      raw = raw.slice(0, -1) + command.slice(stop + 1, more < 0 ? undefined : more)
+      pieces[pieces.length - 1] = pieces[pieces.length - 1]!.slice(0, -1)
+      pieces.push(command.slice(stop + 1, more < 0 ? undefined : more))
       stop = more
     }
+    const raw = pieces.join('')
     const line = tabs ? raw.replace(/^\t+/, '') : raw
     if (line === end) return { text, next: stop < 0 ? command.length : stop + 1 }
     text += `${line}\n`
