@@ -53,7 +53,7 @@ const STATES = 16
 const READ_BYTES = 8 * 1024 * 1024
 /** How much text one file's appended lines in a command may hold, one copy for each way a text ends: a hook shares the machine. */
 const KEPT_BYTES = 256 * 1024 * 1024
-/** How much text a command's seds may run over, each sed command counted, the step that crosses it and the later ones left out: the hook has 10 s. */
+/** How much text a command's seds may run over, each sed command counted, file by file, one that crosses it left out wherever it stands: the hook has 10 s. */
 const SED_BYTES = 128 * 1024 * 1024
 
 /** Where a reading of `text` ends, going on from `start`. */
@@ -99,7 +99,7 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
     const commands = w.sed ? Math.max(1, w.sed.scripts.reduce((n, s) => n + sedCommands(s).length, 0)) : 0
     if (w.sed) {
       // A sed that cannot be run is judged on its own text and leaves what was worked out; it spends nothing.
-      if (w.sed.scriptFile || applySed('x\n', w.sed.scripts, w.sed.ere, w.sed.z) === undefined) {
+      if (w.sed.scriptFile || (after !== '' && applySed('x\n', w.sed.scripts, w.sed.ere, w.sed.z) === undefined)) {
         also.push(w.text)
         continue
       }

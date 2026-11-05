@@ -27,3 +27,9 @@ test('comparison: the same sentence below the command limit', T, async ($, on) =
   world(on, { 'notes.md': prefixFile })
   expect((await bash($, prefixSed(32))).deny).toBeUndefined()
 })
+
+// sed reads no script on an empty file, so a date in one that needs no run writes nothing.
+test('a run-less sed on an empty file writes nothing to judge', T, async ($, on) => {
+  world(on, { 'e.md': '' })
+  expect((await bash($, "sed -i '$a 2027-01-15' e.md")).deny).toBeUndefined()
+})
