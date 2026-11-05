@@ -1,5 +1,9 @@
 # Changelog
 
+## Next
+
+- A stamp written to a file named by a variable is judged: `f=log/today.md; echo "- 18:30 done" >> "$f"` went through before. Claude Code wrote that form in a real terminal on 2026-11-05 and a future time passed. The name counts when a step of the command sets it to a plain value, `export` too. A value the shell works out, or one set inside `if` or a loop, is still not followed.
+
 ## 0.1.7 - 2026-11-05
 
 Seen in a Claude Code terminal on 2026-11-05: a `sed -i` writing a future date into a heading was refused with the real time, and a `sed -i` with no date ran. The known limits below were not on that screen, and Claude did not try again after the refusal.

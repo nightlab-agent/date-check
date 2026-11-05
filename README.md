@@ -163,7 +163,7 @@ reads the file a Write, an Edit or a shell write is about to change, to judge on
   or passes it on and adds a note after its result. A failure of the plugin itself
   never stops the call.
 - The shell reading has limits. It follows what `echo`, `printf`, heredocs and `sed -i`
-  write, but it does not run the command, so a date a `sed` makes after a step that may be
+  write, to a file named outright or through a name the command set to a plain value, but it does not run the command, so a date a `sed` makes after a step that may be
   skipped can pass, and so can one a command works out as it runs. A hook has 10 s, and by Claude Code's
   declared rules a command that takes it longer to read runs unchecked: 80 `printf x` steps on a
   3.9 MB file that is one long line took more than 15 s. Not seen in real Claude Code. The CHANGELOG lists the cases found.
