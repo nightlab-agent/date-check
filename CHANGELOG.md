@@ -2,7 +2,7 @@
 
 ## 0.1.7 - 2026-11-05
 
-None of this release has been seen on a screen yet.
+Seen in a Claude Code terminal on 2026-11-05: a `sed -i` writing a future date into a heading was refused with the real time, and a `sed -i` with no date ran. The known limits below were not on that screen, and Claude did not try again after the refusal.
 
 - A `sed` that cannot be worked out, such as `$a ok`, keeps what earlier steps worked out. A date an earlier `sed` made stays judged, and a replacement that matched nothing is no longer refused. That `sed` and every later step on the same file are not worked out. Each is judged only on the text it writes, with its own fences, as if the file were empty. An overwrite on that file ends this. Such a `sed` does not count toward the `sed` limit, unless only the file's emoji stop it.
 - Known limit, both ways, after such a `sed`. A date a later step makes from other text can pass, as can one split across steps: with `YEAR-01-15` in notes.md, `sed -i '$a ok' notes.md; sed -i 's/YEAR/2027/' notes.md`. A date after a fence one of those steps closes can pass too. A later replacement that matches nothing or sits inside a sentence, `sed -i 's/nothing/2027-01-15/' notes.md`, is refused once and goes through when written again. tests/review-final-sed.test.tsx pins the first and the last.

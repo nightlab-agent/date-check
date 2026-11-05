@@ -1,6 +1,6 @@
 #!/bin/sh
 # Release check (date-check): the manifest and module validate, the tests pass, the plugin
-# directory checklist (tests/checklist.py, from mod-ready) has no FAIL, the README's
+# directory checklist (tests/checklist.py) has no FAIL, the README's
 # Settings line names every setting (tests/readme_settings.py), and the version string is the same in the plugin manifest, the marketplace manifest,
 # the changelog's newest release, and package.json (the README carries no version).
 # Exit non-zero on any of them. Run from the repo root: sh tests/release.sh
