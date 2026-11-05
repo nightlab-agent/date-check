@@ -9,7 +9,7 @@ import type { ShellWrite } from './writes'
 // The engine rejects a read over 4 MiB and an exists on a network location. The text a call adds
 // is known all the same, so one file that cannot be looked at costs only what it held.
 /** Whether a file exists; undefined when the engine cannot say. */
-export const existsAt = async ($: EngineInterface, file: string) => {
+export async function existsAt($: EngineInterface, file: string) {
   try {
     return await $.fs.exists(file)
   } catch {
@@ -17,7 +17,7 @@ export const existsAt = async ($: EngineInterface, file: string) => {
   }
 }
 /** A file's text; undefined when the engine cannot read it. */
-export const readAt = async ($: EngineInterface, file: string) => {
+export async function readAt($: EngineInterface, file: string) {
   try {
     return await $.fs.read(file)
   } catch {
