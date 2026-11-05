@@ -65,3 +65,15 @@ test('a line appended after the limit is still judged', T, async ($, on) => {
   world(on, { 'notes.md': notes('ok') })
   expect((await bash($, `${times(33, i => `sed -i 's/^nothing${i}$/x/' notes.md`)}; echo 2027-01-15 >>notes.md`)).deny ?? '').toContain('2027-01-15')
 })
+
+const files = Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`f${i}.md`, big]))
+test('33 seds on each of six 3.9 MB files stay inside the hook time', T, async ($, on) => {
+  world(on, files)
+  const c = Object.keys(files).map(f => times(33, i => `sed -i 's/note ${i} /item ${i} /' ${f}`)).join('; ')
+  expect((await timed($, c)).ms).toBeLessThan(10000)
+})
+test('33 seds of 40 scripts each on a 3.9 MB file stay inside the hook time', T, async ($, on) => {
+  world(on, { [C]: big })
+  const scripts = Array.from({ length: 40 }, (_, i) => `-e 's/note ${i} /item ${i} /'`).join(' ')
+  expect((await timed($, times(33, () => `sed -i ${scripts} ${C}`))).ms).toBeLessThan(10000)
+})

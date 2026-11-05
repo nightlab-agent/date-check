@@ -53,14 +53,14 @@ const STATES = 16
 const READ_BYTES = 8 * 1024 * 1024
 /** How much text a command's appended lines may hold, one copy for each way a text ends: a hook shares the machine. */
 const KEPT_BYTES = 256 * 1024 * 1024
-/** How much text the seds on one file may run over, the later ones being left out: the hook has 10 s. */
+/** How much text a command's seds may run over, each script counted, the later ones being left out: the hook has 10 s. */
 const SED_BYTES = 128 * 1024 * 1024
 
 /** Where a reading of `text` ends, going on from `start`. */
 const fenceEnd = (text: string, start?: FenceEnd) => fencesFrom(text.split(/\r?\n/), start).end
 
 /** One file's text before and after a shell command's writes to it; undefined when it cannot be read or applied. */
-async function applied($: EngineInterface, file: string, writes: ShellWrite[], exists: boolean) {
+async function applied($: EngineInterface, file: string, writes: ShellWrite[], exists: boolean, work: { sed: number }) {
   const before = exists ? await readAt($, file) : ''
   if (before === undefined) return undefined
   let after: string | undefined = before
@@ -91,13 +91,12 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
     return end
   }
   let spent = 0
-  let sedBytes = 0
   let kept = 0
   // The text with each step that moved a fence left out: what a sed reads when those were skipped.
   let plain = before
   if (writes.some(w => !w.sed)) endNow()
   for (const w of writes) {
-    if (w.sed && (sedBytes += after.length) > SED_BYTES) continue
+    if (w.sed && (work.sed += after.length * Math.max(1, w.sed.scripts.length)) > SED_BYTES) continue
     if (after !== before && (w.sed || w.replaces) && spent <= READ_BYTES) {
       spent += after.length
       also.push(after)
@@ -204,6 +203,7 @@ async function changes($: EngineInterface, x: Call): Promise<Change[]> {
     // `~` (the engine does not expand it) and not after a `cd` in the same command.
     const moved = movesDir(x.command)
     const out: Change[] = []
+    const work = { sed: 0 }
     for (const file of [...new Set(all.map(v => v.file))]) {
       let ws = all.filter(v => v.file === file)
       // A path the shell works out when it runs (`*.md`, `$HOME/log.md`): as written it names no file.
@@ -215,7 +215,7 @@ async function changes($: EngineInterface, x: Call): Promise<Change[]> {
       if (exists === false) ws = made < 0 ? [] : ws.slice(made)
       if (!ws.length) continue
       // A file that exists or is made here: its text after the command's writes in order, judged as an Edit is.
-      const r = exists === undefined ? undefined : await applied($, file, ws, exists)
+      const r = exists === undefined ? undefined : await applied($, file, ws, exists, work)
       const created = exists === false
       // No text could be worked out: each write's own text is one reading, as a skipped step leaves it.
       const also = ws.map(v => v.text)
