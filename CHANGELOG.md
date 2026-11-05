@@ -2,16 +2,15 @@
 
 ## 0.1.7 - 2026-11-05
 
-None of this release has been seen on a screen yet; each item is proven by its tests.
+None of this release has been seen on a screen yet.
 
-- Known limits, each with a failing test kept outside the repo. A wrong date can still pass in these, as it would with no plugin; nothing is refused by mistake. A date a `sed` makes after a step that may be skipped: an overwrite or a `sed` that opens a fence (`false && echo '```' >notes.md; echo a >>notes.md; sed -i 's/^a$/2027-01-15/' notes.md`). A fence step skipped before a line that would close it, then a date. The start of the file for a `sed` late in one command, once 3 MB of the command's other texts were read. A hundred `sed` steps in one command on a 4 MB file take about 15 s, past the hook's 10 s, and Claude Code then runs that command unchecked. This release is the last to widen what the shell reader follows; a report of a missed form reopens it.
-- Many appends with no line end (`printf x >>notes.md`, 80 of them) to a 3.9 MB file take under 5 s: the last line is read from where it starts, not the whole file each time.
-- A long command on a file with no last line end stays inside the hook's time too: a fenced block then 20 appends to a 3.9 MB file. A line ended by an earlier step is judged as a line of its own, even when a later fence step may be skipped.
-- A fence in one step of a shell command no longer hides a date in another step: `false && echo '```' >>notes.md; echo 2027-01-15 >>notes.md` is judged, and the same under `if`, a subshell, a function never called, a background `&` or a `sed -i`. Which steps run, and in what order, cannot be read from a command, so each write is judged on every text an earlier step could have left. A fenced example written across separate steps is refused once and goes through when written again. A long command stays inside the hook's time: 20 appends to a 3.9 MB file take under 2 seconds here. A command's `sed` and overwrite steps read at most 8 MiB of its earlier texts again; past that its last text is still judged, its earlier ones are not. Known limits: a skipped fence hides nothing from an appended line, and a `sed` sees the text with every fence step left out, but not with only some of them left out. A redirect on the whole shell or a group, `exec >notes.md` and `{ echo 2027-01-15; } >notes.md`, is not read.
+- Known limits. A wrong date can still pass in these, as it would with no plugin. A date a `sed` makes after a step that may be skipped, when that step is an overwrite or a `sed` that opens a fence: `false && echo '```' >notes.md; echo a >>notes.md; sed -i 's/^a$/2027-01-15/' notes.md`. A date after a skipped write that would change which line closes a fence. The start of the file for a `sed` late in one command, once 8 MiB of the command's other texts were read again. A date a command works out as it runs: `echo "$(date -d tomorrow +%F)" >>notes.md`, or one held in a variable. New in this release and slower than 0.1.6: a hundred `sed` steps in one command on a 4 MB file take 12 s or more here (0.1.6 took about 6 s), past the hook's 10 s, and by Claude Code's declared rules that command then runs unchecked. Not seen on the real engine.
+- A line ended by an earlier step is judged as a line of its own, even when a later fence step may be skipped.
+- A fence in one step of a shell command no longer hides a date in another step: `false && echo '```' >>notes.md; echo 2027-01-15 >>notes.md` is judged, and the same under `if`, a subshell, a function never called, a background `&` or a `sed -i`. Which steps run, and in what order, cannot be read from a command, so each write is judged on the texts an earlier step could have left, with the limits at the top of this list. A fenced example written across separate steps is refused once and goes through when written again. A command's `sed` and overwrite steps stop reading its earlier texts again after about 8 MiB; past that its last text is still judged, its earlier ones are not. Also not read: a redirect on the whole shell or a group, `exec >notes.md` and `{ echo 2027-01-15; } >notes.md`, is not read.
 - Each text a command could leave is judged with its own fences, so an open ``` in a write that a later overwrite drops no longer hides the date in that overwrite. Known limit: a date appended right after a write with no line end reads as joined to it, even if that write was skipped by `&&` (`false && printf x >notes.md; echo 2027-01-15 >>notes.md`).
 - A date a command writes is judged even when a later step of it drops the text: `echo '2027-01-15' >notes.md; false && echo ok >notes.md`, and the same under `if`, a loop, `exit` or a `sed -i`. Which steps run cannot be read from the command, and a refused text goes through when written again.
 - A `#` right after an escaped space or a joined line is part of the word, so `echo '2027-01-15'\ #x >notes.md` is judged. A `$'...'` word no longer makes the next `printf` lose its escapes.
-- An unquoted heredoc joins a line ending in a backslash; an empty heredoc adds no new line. A fence closes only on a line of its own mark, so a mixed ``` ```~ ``` stays inside it. The heredoc forms are in tests/review-second-forms.ts, checked against real Bash by tests/review-second-bash.ts and against the hook by the test run; the fence form is in tests/shell-older-forms.test.tsx and by the test run against the hook.
+- An unquoted heredoc joins a line ending in a backslash; an empty heredoc adds no new line. A fence closes only on a line of its own mark, so a mixed ``` ```~ ``` stays inside it. The heredoc forms are in tests/review-second-forms.ts, checked against real Bash by tests/review-second-bash.ts and against the hook by the test run; the fence form is in tests/shell-older-forms.test.tsx and judged against the hook by the test run.
 - A heredoc's end word is read as the shell reads it: `<<'E\F'` keeps its backslash, `<<$'E\tF'` reads its escapes, so the commands after it are judged.
 - `$'...'` reads every C escape (`\x32`, octal, `\cJ`) and ends at a nul, so a date spelled that way in a here-string or a word is judged.
 - `echo` takes `'-e'` in quotes as the flag it is, keeps `\12` as written (only `\012` is octal there), and stays on its line after `-n` in quotes or a `\c`; a `-n` after the text is text.
@@ -33,8 +32,7 @@ None of this release has been seen on a screen yet; each item is proven by its t
   (`echo ... > out.dat | tee notes.md`, also `&>`, `>&2`, `/dev/null` or a redirect on a subshell)
   stops there, a file before the command gets none of it, and a later `echo` or heredoc is its own
   text. Before, every file in the pipeline got the first command's text, so a later `echo` into a
-  file was not judged. tests/pipeline-targets.test.tsx fails on 17 cases without this. Not seen on
-  a screen.
+  file was not judged. tests/pipeline-targets.test.tsx fails on 17 cases without this.
 - A code fence inside a list item is code, as a Markdown reader shows it: indented under the item
   by spaces or a tab, on the marker's own line, or under a nested or numbered item. Before, a date
   in such a sample was refused, and a placeholder in one was filled. The fence ends with its item
@@ -42,8 +40,7 @@ None of this release has been seen on a screen yet; each item is proven by its t
   this.
 - A `sed -i` on a file the same command made earlier is judged on what it leaves there
   (`echo "- TBD" > n.md; sed -i 's/TBD/.../' n.md`). Before, it counted as an edit of a missing
-  file and was dropped. tests/files-made-in-a-command.test.tsx fails on 4 cases without this. Not
-  seen on a screen.
+  file and was dropped. tests/files-made-in-a-command.test.tsx fails on 4 cases without this.
 - A heredoc is read wherever its command stands: behind `then`, `do`, `else`, `elif`, `(`, `{`,
   `!`, a variable, `env` or another wrapper, with `<<-` (tabs taken off) or `<<\EOF`, and in
   command order among the other writes of the command. A heredoc for another program no longer
@@ -98,7 +95,7 @@ None of this release has been seen on a screen yet; each item is proven by its t
   not a real large file or share.
 - A line cut to 120 units for a refusal no longer splits an emoji in two, so the refusal
   Claude reads is well formed text. tests/long-lines.test.tsx fails on 3 cases without this.
- 
+
 - A dated time range (`- 2026-10-31 10:00-11:30 standup`) is no longer read as a time with the
   offset -11:30 and refused as future. When the end is after the start, the text is judged
   both ways and called wrong only if wrong under both; a time with `T` or seconds keeps its

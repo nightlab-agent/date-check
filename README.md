@@ -160,7 +160,7 @@ reads the file a Write, an Edit or a shell write is about to change, to judge on
   write, but it does not run the command, so a date a `sed` makes after a step that may be
   skipped can pass, and so can one a command works out as it runs. A hundred `sed` steps in one command
   on a 4 MB file take about 15 s, past the 10 s Claude Code gives a hook, and that command
-  runs unchecked. The CHANGELOG lists each case.
+  runs unchecked. The CHANGELOG lists the cases found.
 
 ## Install
 

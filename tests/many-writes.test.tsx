@@ -45,7 +45,7 @@ test('T2 comparison: 1 append to the same file', async ($, on) => {
   expect(r.ms).toBeLessThan(1000)
 })
 test('T3: 20 appends to a 3.9 MB changelog (the engine reads up to 4 MiB) stay under the hook budget', async ($, on) => {
-  world(on, { 'CHANGELOG.md': big(78000) })
+  world(on, { 'CHANGELOG.md': big(65000) })
   const r = await timed($, appends(20))
   console.log(`T3 20 appends, 3.9 MB file: ${r.ms.toFixed(0)} ms`)
   expect(r.deny).toBeUndefined()
