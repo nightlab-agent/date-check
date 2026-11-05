@@ -49,11 +49,11 @@ const readAt = async ($: EngineInterface, file: string) => {
 }
 
 const STATES = 16
-/** How much of a command's earlier text is read whole again, for its sed and overwrite steps: the hook has 10 s. */
+/** How much of a file's earlier text in a command is read whole again, for its sed and overwrite steps: the hook has 10 s. */
 const READ_BYTES = 8 * 1024 * 1024
-/** How much text a command's appended lines may hold, one copy for each way a text ends: a hook shares the machine. */
+/** How much text one file's appended lines in a command may hold, one copy for each way a text ends: a hook shares the machine. */
 const KEPT_BYTES = 256 * 1024 * 1024
-/** How much text a command's seds may run over, each script counted, the later ones being left out: the hook has 10 s. */
+/** How much text a command's seds may run over, each script counted, the step that crosses it and the later ones left out: the hook has 10 s. */
 const SED_BYTES = 128 * 1024 * 1024
 
 /** Where a reading of `text` ends, going on from `start`. */
