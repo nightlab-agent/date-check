@@ -183,25 +183,29 @@ const wholeReader = (before: string, fileDate?: string) => {
 }
 
 /**
- * `newStamps` for many texts made from one `before`. Most of them only add whole lines after it, and
- * every line of `before` reads the same in such a text, so only the added lines are read, going on
- * from where `before` ended: a long file costs one reading, however many texts.
+ * `newStamps` for many texts made from one `before`. Most of them only add to it, and every whole
+ * line of `before` reads the same in such a text, so only the rest is read, going on from there: a
+ * long file costs one reading, however many texts.
  */
 export const stampReader = (before: string, fileDate?: string) => {
-  const whole = before === '' || before.endsWith('\n')
-  const end = whole ? fencesFrom(before.split(/\r?\n/)).end : undefined
+  // A last line with no line end may be joined to what comes next: it is read again, and what it held carries.
+  const start = before.lastIndexOf('\n') + 1
+  const { end } = fencesFrom(before.slice(0, start).split(/\r?\n/))
+  const read = (text: string) => {
+    const lines = text.split(/\r?\n/)
+    const seen = fencesFrom(lines, end).lines
+    return lines.flatMap((line, i) => (seen[i]!.code || indentedCode(line) ? [] : [lineStamp(line, fileDate)].filter(s => s !== undefined)))
+  }
+  const had = read(before.slice(start)).map(s => s.text)
   const changed = wholeReader(before, fileDate)
   return (after: string): Stamp[] => {
-    if (!end || !after.startsWith(before)) return changed(after)
-    const lines = after.slice(before.length).split(/\r?\n/)
-    const read = fencesFrom(lines, end).lines
-    const out: Stamp[] = []
-    for (const [i, line] of lines.entries()) {
-      if (read[i]!.code || indentedCode(line)) continue
-      const s = lineStamp(line, fileDate)
-      if (s) out.push(s)
-    }
-    return out
+    if (!after.startsWith(before)) return changed(after)
+    const carried = [...had]
+    return read(after.slice(start)).filter(s => {
+      const i = carried.indexOf(s.text)
+      if (i >= 0) carried.splice(i, 1)
+      return i < 0
+    })
   }
 }
 

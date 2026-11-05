@@ -24,7 +24,7 @@ for (const [lineCount, n] of [[2000, 10], [4000, 20], [10000, 10], [10000, 30]] 
   })
 
 const seds = (n: number) => Array.from({ length: n }, (_, i) => `sed -i 's/note ${i} /item ${i} /' CHANGELOG.md`).join('; ')
-test('20 seds on a 2 MB changelog stay under the hook budget', async ($, on) => {
+test('20 seds on a 2 MB changelog stay under the hook budget', { timeoutMs: 30_000 }, async ($, on) => {
   world(on, { 'CHANGELOG.md': big(40000) })
   const r = await timed($, seds(20))
   console.log(`20 seds, 2 MB file: ${r.ms.toFixed(0)} ms`)

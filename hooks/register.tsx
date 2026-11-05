@@ -70,10 +70,12 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   const states = [before]
   let end: FenceEnd | undefined
   const ends = new Map<string, string>()
+  // A text with no line end joins the next line, so it does not read like one that has one.
+  const textKey = (at: FenceEnd, text: string) => `${endKey(at)}${text === '' || text.endsWith('\n')}`
   // Read only for a step that appends: a run of seds on a long file never asks.
   const endNow = () => {
     end ??= fenceEnd(after!)
-    if (!ends.has(endKey(end))) ends.set(endKey(end), after!)
+    if (!ends.has(textKey(end, after!))) ends.set(textKey(end, after!), after!)
     return end
   }
   let spent = 0
@@ -100,7 +102,7 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
       if (left !== undefined) also.push(left)
     } else if (!w.replaces && after.endsWith('\n')) {
       // Text with no line end joins what comes next, so a skipped step leaves the same words only then.
-      const here = endKey(endNow())
+      const here = textKey(endNow(), after)
       for (const [key, text] of ends) if (key !== here) also.push(step(text)!)
     }
     const appends = !w.sed && !w.replaces
