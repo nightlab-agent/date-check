@@ -71,6 +71,8 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   // end alike, so it is judged once for each way they end, however long the command. A sed reads the
   // whole text: the start and the last STATES of them, up to READ_BYTES in all.
   const also: string[] = []
+  const alone: string[] = []
+  let unknown = false
   const states = [before]
   let end: FenceEnd | undefined
   const ends = new Map<string, string>()
@@ -96,11 +98,17 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   let plain = before
   if (writes.some(w => !w.sed)) endNow()
   for (const w of writes) {
+    if (unknown) {
+      alone.push(w.text)
+      continue
+    }
     const commands = w.sed ? Math.max(1, w.sed.scripts.reduce((n, s) => n + sedCommands(s).length, 0)) : 0
     if (w.sed) {
-      // A sed that cannot be run is judged on its own text and leaves what was worked out; it spends nothing.
+      // Past a sed that cannot be run the text is unknown: what was worked out stays judged, and this
+      // step and the later ones are read alone, since no earlier text can be said to sit around them.
       if (w.sed.scriptFile || (after !== '' && applySed('x\n', w.sed.scripts, w.sed.ere, w.sed.z) === undefined)) {
-        also.push(w.text)
+        unknown = true
+        alone.push(w.text)
         continue
       }
       if ((work.sed += after.length * commands) > SED_BYTES) continue
@@ -148,7 +156,8 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
     const shared = plain === after
     const next = step(after)
     if (next === undefined) {
-      also.push(w.text)
+      unknown = true
+      alone.push(w.text)
       continue
     }
     after = next
@@ -157,7 +166,7 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
     if (end) endNow()
     if (!from || endKey(end!) === endKey(from)) plain = shared ? after : (step(plain) ?? plain)
   }
-  return { file, before, after, also }
+  return { file, before, after, also, alone }
 }
 
 /** The directory changes in a shell command (`cd a`, `(pushd b`): after one, a relative path means no one place. */
@@ -194,7 +203,7 @@ async function placed($: EngineInterface, file: string, moves: string[] = []): P
   return drive || network ? one.toLowerCase() : one
 }
 
-type Change = { file: string; before: string; after: string; also?: string[]; created?: boolean }
+type Change = { file: string; before: string; after: string; also?: string[]; alone?: string[]; created?: boolean }
 
 /** What a call changes, file by file: each file's text before and after it (a shell command may write several). */
 async function changes($: EngineInterface, x: Call): Promise<Change[]> {
@@ -359,8 +368,9 @@ export const register: Register = (on, options: Options = {}) => {
         // Bare times in a file named for a later day are a plan for that day, not stamps.
         const day = dateOfFile(w.file)
         const texts = [...new Set([w.after, ...(w.also ?? [])])].filter(Boolean)
-        const read = stampReader(w.before, day && day <= dayOf(now) ? day : undefined)
-        const found = texts.flatMap(t => judge(read(t), now, limits))
+        const reader = (was: string) => stampReader(was, day && day <= dayOf(now) ? day : undefined)
+        const read = reader(w.before)
+        const found = [...texts.flatMap(t => judge(read(t), now, limits)), ...(w.alone ?? []).flatMap(t => judge(reader('')(t), now, limits))]
         const verdicts = found.filter((v, i) => found.findIndex(o => o.stamp.text === v.stamp.text && o.stamp.line === v.stamp.line) === i)
         judged.push({ file: w.file, at: '', verdicts, name })
       }
