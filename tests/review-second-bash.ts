@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { characters, forms, prefix } from './review-second-forms'
 import { forms as skipped } from './shell-skipped-forms'
+import { forms as steps } from './shell-steps-forms'
 
 const check = (name: string, command: string, text: string, file = 'notes.md', files: Record<string, string> = {}) => {
   const dir = mkdtempSync('/tmp/date-check-second-review-')
@@ -26,9 +27,10 @@ const check = (name: string, command: string, text: string, file = 'notes.md', f
 }
 
 for (const [name, command, text, , file] of forms) check(name, command, text, file)
-for (const [name, command, text, , file, files] of skipped as readonly (readonly [string, string, string, boolean, string?, Record<string, string>?])[]) check(name, command, text, file, files)
+// K races: `a & b` lands in either order, so only the hook test holds it.
+for (const [name, command, text, , file, files] of [...skipped, ...steps] as readonly (readonly [string, string, string, boolean, string?, Record<string, string>?])[]) if (!name.startsWith('K')) check(name, command, text, file, files)
 for (const character of characters) {
   const line = `${prefix}${character} tail`
   check(`whole character ${character}`, `printf '%s\\n' '${line}' >notes.md`, `${line}\n`)
 }
-console.log(`Bash parity: ${forms.length + skipped.length + characters.length} file contents matched`)
+console.log(`Bash parity: ${forms.length + skipped.length + steps.length - 1 + characters.length} file contents matched`)
