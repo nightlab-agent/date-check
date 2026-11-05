@@ -3,7 +3,7 @@ import { clockText, dateOfFile, dayOf, fillEdit, fillNow, gapText, judge, judgeN
 import type { Limits, Verdict } from './stamps'
 import { endKey, fencesFrom } from './fences'
 import type { FenceEnd } from './fences'
-import { applySed } from './sed'
+import { applySed, sedCommands } from './sed'
 import { isText, PIPED, shellWrites } from './writes'
 import type { ShellWrite } from './writes'
 
@@ -53,7 +53,7 @@ const STATES = 16
 const READ_BYTES = 8 * 1024 * 1024
 /** How much text one file's appended lines in a command may hold, one copy for each way a text ends: a hook shares the machine. */
 const KEPT_BYTES = 256 * 1024 * 1024
-/** How much text a command's seds may run over, each script counted, the step that crosses it and the later ones left out: the hook has 10 s. */
+/** How much text a command's seds may run over, each sed command counted, the step that crosses it and the later ones left out: the hook has 10 s. */
 const SED_BYTES = 128 * 1024 * 1024
 
 /** Where a reading of `text` ends, going on from `start`. */
@@ -96,7 +96,11 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   let plain = before
   if (writes.some(w => !w.sed)) endNow()
   for (const w of writes) {
-    if (w.sed && (work.sed += after.length * Math.max(1, w.sed.scripts.length)) > SED_BYTES) continue
+    if (w.sed && (work.sed += after.length * Math.max(1, w.sed.scripts.reduce((n, s) => n + sedCommands(s).length, 0))) > SED_BYTES) {
+      // Left out only where a run would be needed: one that cannot be run reads its own text, as below the limit.
+      if (w.sed.scriptFile || applySed('x\n', w.sed.scripts, w.sed.ere, w.sed.z) === undefined) return undefined
+      continue
+    }
     if (after !== before && (w.sed || w.replaces) && spent <= READ_BYTES) {
       spent += after.length
       also.push(after)
@@ -205,6 +209,7 @@ async function changes($: EngineInterface, x: Call): Promise<Change[]> {
     const out: Change[] = []
     const work = { sed: 0 }
     for (const file of [...new Set(all.map(v => v.file))]) {
+      if (!isText(file)) continue
       let ws = all.filter(v => v.file === file)
       // A path the shell works out when it runs (`*.md`, `$HOME/log.md`): as written it names no file.
       const sure = !file.startsWith('~') && !ws.some(v => v.expands) && !moved && file !== PIPED
