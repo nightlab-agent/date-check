@@ -2,28 +2,30 @@
 
 ## 0.1.7 - 2026-11-05
 
+None of this release has been seen on a screen yet; each item is proven by its tests.
+
 - In a command that branches (`&&`, `||`, `if`, `case`, a loop), a fence an earlier step may never write no longer hides a date a later step appends: `false && echo '```' >>notes.md; echo 2027-01-15 >>notes.md` is judged. A plain `a; b` keeps its fence. Known limits: a redirect on the whole shell or a group, `exec >notes.md` and `{ echo 2027-01-15; } >notes.md`, is not read.
 - Each text a command could leave is judged with its own fences, so an open ``` in a write that a later overwrite drops no longer hides the date in that overwrite. Known limit: a date appended right after a write with no line end reads as joined to it, even if that write was skipped by `&&` (`false && printf x >notes.md; echo 2027-01-15 >>notes.md`).
 - A date a command writes is judged even when a later step of it drops the text: `echo '2027-01-15' >notes.md; false && echo ok >notes.md`, and the same under `if`, a loop, `exit` or a `sed -i`. Which steps run cannot be read from the command, and a refused text goes through when written again.
 - A `#` right after an escaped space or a joined line is part of the word, so `echo '2027-01-15'\ #x >notes.md` is judged. A `$'...'` word no longer makes the next `printf` lose its escapes.
-- An unquoted heredoc joins a line ending in a backslash; an empty heredoc adds no new line. A fence closes only on a line of its own mark, so a mixed ``` ```~ ``` stays inside it. tests/review-second-forms.ts holds each form, checked by tests/review-second-bash.ts against real Bash and by the test run against the hook.
+- An unquoted heredoc joins a line ending in a backslash; an empty heredoc adds no new line. A fence closes only on a line of its own mark, so a mixed ``` ```~ ``` stays inside it. The heredoc forms are in tests/review-second-forms.ts, checked against real Bash by tests/review-second-bash.ts and against the hook by the test run; the fence form is in tests/shell-older-forms.test.tsx and by the test run against the hook.
 - A heredoc's end word is read as the shell reads it: `<<'E\F'` keeps its backslash, `<<$'E\tF'` reads its escapes, so the commands after it are judged.
 - `$'...'` reads every C escape (`\x32`, octal, `\cJ`) and ends at a nul, so a date spelled that way in a here-string or a word is judged.
 - `echo` takes `'-e'` in quotes as the flag it is, keeps `\12` as written (only `\012` is octal there), and stays on its line after `-n` in quotes or a `\c`; a `-n` after the text is text.
 - One file spelled two ways counts as one: a `sed -i` on `./notes.md` after a write to `notes.md` in the same command is judged, also `a/./notes.md` and `a//notes.md`. Before, it read as a missing file and its date was missed.
 - `echo` reads escapes only when `-e` is the last of `-e` and `-E`, as bash does, so `echo 'a\n2027-01-15'` opens no new line and is no longer refused. `echo -e` reads every escape, not only `\n`.
-- A heredoc with no exact end line runs to the end of the command, as bash takes it, so its date is judged; `EOF ` with a space after it is no end line. A here-string (`cat <<< "text" >> notes.md`) is read too. tests/review-ts-0.1.7.test.tsx fails on 3 cases without this. Not seen on a screen.
-- A redirect on another descriptor (`3</dev/null`) or a reopened `</dev/stdin` leaves a heredoc in place, so its date is judged. A line ending in an escaped `\|` does not run on into the next. tests/review-bash-parity.test.tsx fails on 3 cases without this. Not seen on a screen.
-- In `printf`, a `*` precision reads octal and hex and a negative one counts as none, a quoted argument (`"'A"`) is that character's number, `%#.0o` keeps its zero, `%.2b` and `%.2s` count bytes, and a number past 64 bits stops at the limit. Checked against bash 5.2's own printf; tests/review-bash-parity.test.tsx fails on 6 cases without this. Not seen on a screen.
-- A file written in several steps is judged as the shell leaves it: a `printf` or `echo -n` runs on into the next write, `cat 0<<EOF` is read as a heredoc, and a quoted `'--'` ends printf's options. tests/review-shell-parser.test.tsx fails on 4 cases without this. Not seen on a screen.
-- `printf` reads numbers and escapes as bash does: `%x` and `%o`, the `+`, space and `#` flags, `0x` and `0` arguments, `*` for a width, `%n`, `\\c` in `%b`, hex, unicode and octal escapes. tests/printf-kinds.test.tsx fails on 11 cases without this. Not seen on a screen.
-- `$((1<<x))` is a shift, not a heredoc, even when a later line reads `x`. A redirect may come before its command (`>notes.md cat <<EOF`). The last input redirect wins, so a `</dev/null` after a heredoc drops it. A line ending in a pipe goes on to the next. A file name with an escaped bracket, star or dollar (`notes\\[1\\].md`) is that literal name. tests/command-forms.test.tsx fails on 5 cases without this. Not seen on a screen.
+- A heredoc with no exact end line runs to the end of the command, as bash takes it, so its date is judged; `EOF ` with a space after it is no end line. A here-string (`cat <<< "text" >> notes.md`) is read too. 3 of the 5 cases in tests/review-ts-0.1.7.test.tsx fail without this; the other two cover the emoji cut below and a `printf` width past what a string holds.
+- A redirect on another descriptor (`3</dev/null`) or a reopened `</dev/stdin` leaves a heredoc in place, so its date is judged. A line ending in an escaped `\|` does not run on into the next. tests/review-bash-parity.test.tsx fails on 3 cases without this.
+- In `printf`, a `*` precision reads octal and hex and a negative one counts as none, a quoted argument (`"'A"`) is that character's number, `%#.0o` keeps its zero, `%.2b` and `%.2s` count bytes, and a number past 64 bits stops at the limit. Checked against bash 5.2's own printf; tests/review-bash-parity.test.tsx fails on 6 cases without this.
+- A file written in several steps is judged as the shell leaves it: a `printf` or `echo -n` runs on into the next write, `cat 0<<EOF` is read as a heredoc, and a quoted `'--'` ends printf's options. tests/review-shell-parser.test.tsx fails on 4 cases without this.
+- `printf` reads numbers and escapes as bash does: `%x` and `%o`, the `+`, space and `#` flags, `0x` and `0` arguments, `*` for a width, `%n`, `\\c` in `%b`, hex, unicode and octal escapes. tests/printf-kinds.test.tsx fails on 11 cases without this.
+- `$((1<<x))` is a shift, not a heredoc, even when a later line reads `x`. A redirect may come before its command (`>notes.md cat <<EOF`). The last input redirect wins, so a `</dev/null` after a heredoc drops it. A line ending in a pipe goes on to the next. A file name with an escaped bracket, star or dollar (`notes\\[1\\].md`) is that literal name. tests/command-forms.test.tsx fails on 5 cases without this.
 - A `printf` is judged on what its format prints (`printf 'Planned for %s.\n' 2027-01-15` is a
   sentence): `%s`, `%b`, `%c`, whole numbers with their width and padding, `%%`, and the format
   used again while arguments are left. Before, each argument counted as a line of its own, so
   that sentence was refused, and a date built from numbers was missed. A format the shell works
   out as it runs still leaves each argument alone on a line. tests/printf-formats.test.tsx fails
-  on 13 cases without this. Not seen on a screen.
+  on 13 cases without this.
 - A file down a pipeline is judged on the text that reaches it. Text a command sends elsewhere
   (`echo ... > out.dat | tee notes.md`, also `&>`, `>&2`, `/dev/null` or a redirect on a subshell)
   stops there, a file before the command gets none of it, and a later `echo` or heredoc is its own
@@ -34,7 +36,7 @@
   by spaces or a tab, on the marker's own line, or under a nested or numbered item. Before, a date
   in such a sample was refused, and a placeholder in one was filled. The fence ends with its item
   when a line sits left of the item's text. tests/code-fences.test.tsx fails on 9 cases without
-  this. Not seen on a screen.
+  this.
 - A `sed -i` on a file the same command made earlier is judged on what it leaves there
   (`echo "- TBD" > n.md; sed -i 's/TBD/.../' n.md`). Before, it counted as an edit of a missing
   file and was dropped. tests/files-made-in-a-command.test.tsx fails on 4 cases without this. Not
@@ -44,11 +46,11 @@
   command order among the other writes of the command. A heredoc for another program no longer
   counts as the input of a `cat` earlier on the line. A `(` or `)` in quotes inside `$(...)` no
   longer hides the redirect after it. tests/heredoc-commands.test.tsx fails on 19 cases without
-  this. Not seen on a screen.
+  this.
 - A backslash at a line's end joins the two lines as bash does: a command split over lines
   (`sed -i \` with the script on the next line, `echo ... >> \` with the file on the next, a
   heredoc's redirect) is read as one. tests/line-continuations.test.tsx fails on 7 cases without
-  this. Not seen on a screen.
+  this.
 - The README and this log said `sed -i -f` falls back to judging the written text. It does not: a
   script read from a file is not read, and the README says so now. The `staleNotes` setting says
   that a new file named for a past day is still refused with it off. The README lists `CHANGES`
@@ -58,56 +60,55 @@
   with no redirect is left alone), and a quoted name or `my\ notes.md` is one file, in an echo
   and a heredoc. `tee --append`, `tee -a -i` and every file a `tee` names are read, and an
   echo after a heredoc on the heredoc line is judged. tests/shell-targets.test.tsx fails on 11
-  cases without this. Not seen on a screen.
+  cases without this.
 - An `echo` or `printf` with its text outside quotes (`echo 2026-10-31 18:30 deploy >>
   log.md`) is judged on what it prints. Before, the line began with the word `echo`, so no
   stamp was found. An echo's quoted words join with spaces as the shell prints them.
-  tests/shell-forms.test.tsx fails on 5 cases without this. Not seen on a screen.
+  tests/shell-forms.test.tsx fails on 5 cases without this.
 - A write behind `then`, `do`, `else`, `if`, `while`, `until`, `!` or `{` in its own part of a
   command is judged, and a comment is skipped, so an apostrophe in one (`# don't forget`) no
   longer hides the command after it. A compound command with its redirect after the closing
   word (`{ ...; } >> log.md`, `done >> log.md`) is still not read. tests/shell-forms.test.tsx
-  fails on 5 cases without this. Not seen on a screen.
+  fails on 5 cases without this.
 - A shell `$'...'` quote keeps its `\'` and any `;` inside it when the command is cut into
   parts, so what it writes is judged. tests/shell-forms.test.tsx fails on 2 cases without
-  this. Not seen on a screen.
+  this.
 - A `sed -i` on a glob or a variable path (`*.md`, `"$HOME/log.md"`) is judged on the text it
   writes, when the path as written ends in a text file's name. Before, the path counted as a
   missing file and the write was dropped. A file behind a variable no longer counts as new, so
   its name is not refused. A quoted name that holds `[` or `$` (`'notes[1].md'`) is that one
   file, looked up like any other. tests/shell-unknown-paths.test.tsx fails on 5 cases without
-  this, tests/literal-file-names.test.tsx on 7. Not seen on a screen.
+  this, tests/literal-file-names.test.tsx on 7.
 - A `sed -i` script glued to its option (`-e's/a/b/'`, `-ne'...'`, `-Ee'...'`) is read.
   Before, it was skipped as an unknown option. tests/sed-forms.test.tsx fails on 4 cases
-  without this. Not seen on a screen.
+  without this.
 - A `-e` script beside a `sed -i -f` file is judged by the text it writes. Before, one `-f`
-  dropped the whole command. tests/sed-forms.test.tsx fails on 4 cases without this. Not seen
-  on a screen.
+  dropped the whole command. tests/sed-forms.test.tsx fails on 4 cases without this.
 - The `a\`, `i\` and `c\` form of `sed -i` with its text on the next line, a text continued
   over lines ending in a backslash, and a text in the `-e` after `a\` are judged. Before, that
   text was lost, and the README says these lines are judged. tests/sed-forms.test.tsx fails on
-  6 cases without this. Not seen on a screen.
+  6 cases without this.
 - A Write or an Edit whose file cannot be read or looked at (over 4 MiB, a network location)
   is judged on the text it adds, as a shell write already was, and a shell command keeps
   judging its other files. Before, one failed look dropped the judgment on the whole call.
   tests/failed-reads.test.tsx fails on 5 cases without this; the failures there are mocked,
-  not a real large file or share. Not seen on a screen.
+  not a real large file or share.
 - A line cut to 120 units for a refusal no longer splits an emoji in two, so the refusal
   Claude reads is well formed text. tests/long-lines.test.tsx fails on 3 cases without this.
-  Not seen on a screen.
+ 
 - A dated time range (`- 2026-10-31 10:00-11:30 standup`) is no longer read as a time with the
   offset -11:30 and refused as future. When the end is after the start, the text is judged
   both ways and called wrong only if wrong under both; a time with `T` or seconds keeps its
-  offset. tests/time-ranges.test.tsx fails on 5 cases without this. Not seen on a screen.
+  offset. tests/time-ranges.test.tsx fails on 5 cases without this.
 - The judge and the placeholder fill read a code fence the same one way: closed only by the
   same mark, as long or longer, with nothing after it, and a line with inline ```` ```x```
   ```` opens none. Before, the judge toggled on any ``` or ~~~ line, so a stamp after such a
   line could go unjudged and a sample inside a fence could be refused.
-  tests/code-fences.test.tsx fails on 6 cases without this. Not seen on a screen.
+  tests/code-fences.test.tsx fails on 6 cases without this.
 - A placeholder in an Edit is read where it lands in the file, so one that lands in a code
   block, a code span or an indented code line of the file is kept as written, as the README
   says. Before, only the new text was read. tests/fill-edit.test.tsx fails on 3 cases without
-  this. Not seen on a screen.
+  this.
 
 ## 0.1.6 (2026-11-03)
 

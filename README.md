@@ -100,7 +100,7 @@ and said the time was filled in from the clock as the file was written.
   it is wrong for every place it can mean. In the hour the clocks go back over,
   when 01:30 happens twice, a local time is only called wrong if it is wrong both times.
 - It checks Write, Edit, and shell commands where `echo` or `printf` writes to
-  a file with `>>`, `>`, `>|`, `&>>`, `1>` or `| tee` (`2>>` sends only errors,
+  a file with `>>`, `>`, `>|`, `&>`, `&>>`, `1>` or `| tee` (`2>>` sends only errors,
   so it is not a write of the text), where `cat` or `tee` writes a heredoc or a here-string to one
   (every heredoc in the command, also after `&&` or `;`), or where `sed -i`
   changes one (on a file that exists, the lines its substitution changes, judged
