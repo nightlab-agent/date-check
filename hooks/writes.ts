@@ -151,7 +151,7 @@ const printsNoNewline = (stage: Word[]) => {
 }
 
 /** One write a shell command makes: the file, whether the shell works its name out as it runs, the text, and for a sed -i its scripts. */
-export type ShellWrite = { file: string; expands?: boolean; text: string; replaces?: boolean; mayNotRun?: boolean; joins?: boolean; sed?: { scripts: string[]; ere: boolean; z: boolean; scriptFile: boolean } }
+export type ShellWrite = { file: string; expands?: boolean; text: string; replaces?: boolean; joins?: boolean; sed?: { scripts: string[]; ere: boolean; z: boolean; scriptFile: boolean } }
 
 /** A file as one spelling: `./notes.md`, `a/./notes.md` and `a//notes.md` are what the shell opens without the extras. */
 const oneSpelling = (path: string) => path.replace(/\/{2,}/g, '/').replace(/(^|\/)(?:\.\/)+/g, '$1')
@@ -186,17 +186,13 @@ const outFiles = (pipeline: Word[][], docs: string[]) => {
   for (const [at, stage] of pipeline.entries()) {
     if (at > 0 && madeBy(stage, docs) !== undefined) break
     let offPipe = false
-    // Of a command's redirects of its output the last wins: the ones before it are only opened.
-    let last: (Word & { replaces?: boolean }) | undefined
     for (const [i, w] of stage.entries()) {
       const to = stage[i + 1]
       if (!w.redirect || !to || !/^(?:1?>|&>)/.test(w.text)) continue
       const stream = w.text.endsWith('&') && /^(?:\d+-?|-)$/.test(to.text)
-      if (!stream) last = { ...to, replaces: !w.text.includes('>>') }
-      else if (to.text !== '1') last = undefined
+      if (!stream) files.push({ ...to, replaces: !w.text.includes('>>') })
       if (to.text !== (stream ? '1' : '/dev/stdout')) offPipe = true
     }
-    if (last) files.push(last)
     const run = commandIn(stage)
     if (run && commandName(run.words[0]!) === 'tee')
       files.push(...withoutRedirects(run.words.slice(1)).filter(w => w.quoted || !w.text.startsWith('-'))
@@ -214,11 +210,7 @@ const outFiles = (pipeline: Word[][], docs: string[]) => {
 export const shellWrites = (command: string): ShellWrite[] => {
   const out: ShellWrite[] = []
   const docs: string[] = []
-  const gates: string[] = []
-  const parts = shellParts(command, docs, gates)
-  // Any write here may be skipped: only a bare `true &&` or `: &&` gate surely lets the next part run.
-  const branches = gates.some(g => !/^(?:true|:) &&$/.test(g)) || parts.some(p => /^[\s({]*(?:if|while|until|for|case|select)\b/.test(p))
-  for (const part of parts) {
+  for (const part of shellParts(command, docs)) {
     const sed = sedInPlace(part)
     if (sed) {
       // sed reads its scripts as one, a new line between them (`-e 'a\\' -e 'text'`).
@@ -235,7 +227,7 @@ export const shellWrites = (command: string): ShellWrite[] => {
       if (text === undefined) continue
       const joins = printsNoNewline(stage)
       for (const file of outFiles(pipeline.slice(at), docs))
-        out.push({ ...named(file), text, ...(file.replaces ? { replaces: true } : {}), ...(branches ? { mayNotRun: true } : {}), ...(joins ? { joins: true } : {}) })
+        out.push({ ...named(file), text, ...(file.replaces ? { replaces: true } : {}), ...(joins ? { joins: true } : {}) })
     }
   }
   return out

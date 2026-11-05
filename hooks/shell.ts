@@ -76,8 +76,18 @@ const arithmetic = (command: string, i: number) => {
   return -1
 }
 
-/** Whether a `#` after `text` starts a word: a line continuation is no gap, and an escaped space or tab is part of the word. */
-const atWordStart = (text: string) => /(?:^|(?<!\\)(?:\\\\)*[\s;&|(])$/.test(text.replace(/\\\n/g, ''))
+/** Whether `text` ends in an odd run of backslashes before `at`, so what stands at `at` is escaped. */
+const escapedAt = (text: string, at: number) => {
+  let run = 0
+  while (text[at - 1 - run] === '\\') run++
+  return run % 2 === 1
+}
+/** Whether a `#` after `text` starts a word: a line continuation is no gap, and an escaped space or tab is part of the word. Reads from the end, so a long part costs nothing. */
+const atWordStart = (text: string) => {
+  let at = text.length
+  while (text[at - 1] === '\n' && escapedAt(text, at - 1)) at -= 2
+  return at === 0 || (/[\s;&|(]/.test(text[at - 1]!) && !escapedAt(text, at - 1))
+}
 
 /**
  * The parts of a shell command between `&&`, `||`, `;`, a single `&` and new lines that sit outside
@@ -85,9 +95,8 @@ const atWordStart = (text: string) => /(?:^|(?<!\\)(?:\\\\)*[\s;&|(])$/.test(tex
  * that names it (docOf), so each heredoc stays in its place among the commands. As bash does, the
  * body starts on the line after the `<<` and ends at a line that is exactly the word (`<<-` takes
  * the tabs off). With no such line it runs to the end of the command; a `$((1<<2))` is a shift (arithmetic), never a heredoc.
- * `gates` gets each part that ends in `&&` or `||`, with that operator.
  */
-export const shellParts = (command: string, docs: string[] = [], gates: string[] = []): string[] => {
+export const shellParts = (command: string, docs: string[] = []): string[] => {
   const parts: string[] = []
   let cur = ''
   let q: string | undefined
@@ -157,7 +166,6 @@ export const shellParts = (command: string, docs: string[] = [], gates: string[]
     if (c === '\n' && /(?<!\\)(?:\\\\)*\|\s*$/.test(cur)) continue
     const two = command.slice(i, i + 2)
     if (two === '&&' || two === '||') {
-      gates.push(`${cur.trim()} ${two}`)
       parts.push(cur)
       cur = ''
       i++

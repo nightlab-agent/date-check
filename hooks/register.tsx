@@ -51,13 +51,16 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   const before = exists ? await readAt($, file) : ''
   if (before === undefined) return undefined
   let after: string | undefined = before
+  // What this command wrote and a later step would drop stays in the reading: that step may never
+  // run (`&&`, `if`, `exit`, `set -e`, a killed command), and a refusal only asks for the text again.
+  let dropped = ''
   for (const w of writes) {
+    if (after !== before && (w.sed || w.replaces)) dropped += `${after}\n`
     if (w.sed) after = w.sed.scriptFile ? undefined : applySed(after, w.sed.scripts, w.sed.ere, w.sed.z)
-    // An overwrite that may not run leaves what this command wrote earlier in the running.
-    else after = `${w.replaces && !(w.mayNotRun && after !== before) ? '' : after}${w.text}${w.joins || w.text.endsWith('\n') ? '' : '\n'}`
+    else after = `${w.replaces ? '' : after}${w.text}${w.joins || w.text.endsWith('\n') ? '' : '\n'}`
     if (after === undefined) return undefined
   }
-  return { file, before, after }
+  return { file, before, after: dropped + after }
 }
 
 /** The directory changes in a shell command (`cd a`, `(pushd b`): after one, a relative path means no one place. */

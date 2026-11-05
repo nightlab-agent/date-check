@@ -1,6 +1,8 @@
 const date = '2027-01-15'
 
 // name, command, the file Bash writes, whether the hook should refuse, optional file path.
+// A refusal may name a date the finished file lacks: a step that drops text may never run, and the
+// same text written again goes through.
 // Every command starts in an empty folder; the hook clock is 2026-10-31 16:01 local.
 export const forms = [
   ['a quoted delimiter preserves its backslash and the following command',
@@ -63,15 +65,19 @@ export const forms = [
     `echo -e -E 'x\\n${date}' >notes.md`, `x\\n${date}\n`, false],
   ['checked: echo -e overrides -E in a combined option',
     `echo -Ee 'x\\n${date}' >notes.md`, `x\n${date}\n`, true],
-  // An overwrite that may not run keeps what the command wrote before it.
+  // A later step never hides what the command wrote before it.
   ['a skipped overwrite after a failed gate', `echo '${date}' >notes.md; false && echo ok >notes.md; :`, `${date}\n`, true],
-  ['comparison: an overwrite that runs', `echo '${date}' >notes.md; true && echo ok >notes.md`, 'ok\n', false],
+  ['an overwrite that runs still shows the date', `echo '${date}' >notes.md; true && echo ok >notes.md`, 'ok\n', true],
   ['a skipped overwrite under an if', `echo '${date}' >notes.md; if false; then echo ok >notes.md; fi`, `${date}\n`, true],
   ['a skipped overwrite in a loop over nothing', `echo '${date}' >notes.md; for f in; do echo ok >notes.md; done`, `${date}\n`, true],
   ['a skipped overwrite in a case', `echo '${date}' >notes.md; case x in y) echo ok >notes.md;; esac`, `${date}\n`, true],
   ['a skipped overwrite after an or', `echo '${date}' >notes.md; true || echo ok >notes.md`, `${date}\n`, true],
   ['a skipped overwrite in a subshell', `echo '${date}' >notes.md; (false && echo ok >notes.md); :`, `${date}\n`, true],
-  ['comparison: a plain sequence', `echo '${date}' >notes.md; echo ok >notes.md`, 'ok\n', false],
+  ['a plain sequence still shows the date', `echo '${date}' >notes.md; echo ok >notes.md`, 'ok\n', true],
+  ['a sed under a failed gate', `echo '${date}' >notes.md; false && sed -i s/${date}/past/ notes.md; :`, `${date}\n`, true],
+  ['an exit before the overwrite', `echo '${date}' >notes.md; exit 0; echo ok >notes.md`, `${date}\n`, true],
+  ['a pipe into a loop that never runs', `echo '${date}' >notes.md; true </dev/null | while read l; do echo ok >notes.md; done`, `${date}\n`, true],
+  ['comparison: a sed on a file already there is judged as it ends', `echo ok >notes.md; sed -i s/ok/fine/ notes.md`, 'fine\n', false],
 
   // A # opens a comment only where a word starts.
   ['a hash after an escaped space', `echo '${date}'\\ #x >notes.md`, `${date} #x\n`, true],
@@ -85,9 +91,11 @@ export const forms = [
   ['comparison: printf after a plain word', `printf '\\n%s' '${date}' >notes.md`, `\n${date}`, true],
 
   // Of a command's output redirects the last one gets the text.
-  ['the last redirect of two gets the text', `echo '${date}' >/dev/null >notes.md`, `${date}\n`, true],
+  ['either of two redirects shows the date', `echo '${date}' >/dev/null >notes.md`, `${date}\n`, true],
   ['comparison: a redirect to itself changes nothing', `echo '${date}' >notes.md >&1`, `${date}\n`, true],
-  ['the first of two redirects stays empty', `echo '${date}' >notes.md >/dev/null`, '', false],
+  ['a redirect that loses in bash still shows the date', `echo '${date}' >notes.md >/dev/null`, '', true],
+  ['a redirect reopened through stdout', `echo '${date}' >notes.md >/dev/stdout`, `${date}\n`, true],
+  ['a redirect moved through another descriptor', `echo '${date}' >notes.md 3>&1 >&3`, `${date}\n`, true],
   ['an unquoted heredoc joins a continued line', `cat <<EOF >notes.md\nPlanned for \\\n${date}\nEOF`, `Planned for ${date}\n`, false],
   ['comparison: a quoted heredoc keeps the lines apart', `cat <<'EOF' >notes.md\nPlanned for \\\n${date}\nEOF`, `Planned for \\\n${date}\n`, true],
   ['an empty heredoc adds no new line', `printf 'Planned for ' >notes.md; cat <<EOF >>notes.md\nEOF\necho '${date}' >>notes.md`, `Planned for ${date}\n`, false],

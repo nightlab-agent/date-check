@@ -7,7 +7,7 @@ const date = '2027-01-15'
 refuses('R1: explicit stdin heredoc is judged', `cat 0<<EOF > notes.md\n${date}\nEOF`, {}, date)
 refuses('R1 comparison: implicit stdin heredoc is judged', `cat <<EOF > notes.md\n${date}\nEOF`, {}, date)
 
-passes('R5: an overwrite discards the earlier sed result', `echo TBD > notes.md; sed -i 's/TBD/${date}/' notes.md; echo 2026-10-31 > notes.md`)
+refuses('R5: an overwrite does not hide the earlier sed result, which it may never reach', `echo TBD > notes.md; sed -i 's/TBD/${date}/' notes.md; echo 2026-10-31 > notes.md`, {}, date)
 refuses('R5 comparison: without the overwrite the sed date remains', `echo TBD > notes.md; sed -i 's/TBD/${date}/' notes.md`, {}, date)
 
 passes('R6: printf joins a sentence in a file created earlier', `printf 'Planned for ' > notes.md; printf '%d-01-15\\n' 2027 >> notes.md`)
