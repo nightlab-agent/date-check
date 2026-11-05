@@ -9,6 +9,8 @@ set -e
 cd "$(dirname "$0")/.."
 claude plugin validate .
 claude plugin test .
+# The shell forms against real Bash, where Bun is at hand.
+if command -v bun >/dev/null; then bun tests/review-second-bash.ts; bun tests/shell-branches-bash.ts; fi
 sh tests/typecheck.sh
 python3 -I tests/checklist.py
 python3 -I tests/readme_settings.py

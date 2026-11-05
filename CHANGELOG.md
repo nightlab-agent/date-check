@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- A later `>` that may not run no longer hides what the same command wrote: `echo '2027-01-15' >notes.md; false && echo ok >notes.md` is judged with both, under `&&`, `||`, `if`, `case` and loops. A plain sequence, or a bare `true &&`, still drops the earlier text.
+- A `#` right after an escaped space or a joined line is part of the word, so `echo '2027-01-15'\ #x >notes.md` is judged. A `$'...'` word no longer makes the next `printf` lose its escapes.
+- Of several redirects of one command's output, only the last gets the text, as in bash (`>notes.md >/dev/null` writes no date). An unquoted heredoc joins a line ending in a backslash; an empty heredoc adds no new line. A fence closes only on a line of its own mark, so a mixed ``` ```~ ``` stays inside it. tests/shell-branches-bash.ts checks the forms against real Bash.
 - A heredoc's end word is read as the shell reads it: `<<'E\F'` keeps its backslash, `<<$'E\tF'` reads its escapes, so the commands after it are judged.
 - `$'...'` reads every C escape (`\x32`, octal, `\cJ`) and ends at a nul, so a date spelled that way in a here-string or a word is judged.
 - `echo` takes `'-e'` in quotes as the flag it is, keeps `\12` as written (only `\012` is octal there), and stays on its line after `-n` in quotes or a `\c`; a `-n` after the text is text.

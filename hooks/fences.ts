@@ -32,7 +32,7 @@ export const fences = (lines: string[]) => {
       if (!rest || column >= fence.margin) {
         out[i]!.code = true
         const mark = /^(`{3,}|~{3,})/.exec(rest)?.[1]
-        if (column - fence.margin < 4 && mark && mark[0] === fence.mark[0] && mark.length >= fence.mark.length && /^[`~]+\s*$/.test(rest)) close(i)
+        if (column - fence.margin < 4 && mark && mark[0] === fence.mark[0] && mark.length >= fence.mark.length && rest.trimEnd() === mark) close(i)
         continue
       }
       close(i - 1)

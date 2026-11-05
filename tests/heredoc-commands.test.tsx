@@ -30,12 +30,12 @@ refuses('a line that only looks like the end stays in the text', `cat >> log.md 
 test('two heredocs on one line take the next bodies in turn', () => {
   const docs: string[] = []
   expect(shellParts('cat <<A; cat <<B\none\nA\ntwo\nB\necho x', docs).length).toBe(3)
-  expect(docs).toEqual(['one', 'two'])
+  expect(docs).toEqual(['one\n', 'two\n'])
 })
 test('an empty heredoc has no text, and a body keeps its lines', () => {
   const docs: string[] = []
   shellParts('cat <<A\nA\ncat <<B\n;one\n\ntwo\nB', docs)
-  expect(docs).toEqual(['', ';one\n\ntwo'])
+  expect(docs).toEqual(['', ';one\n\ntwo\n'])
 })
 test('a shift inside an arithmetic with no end line is no heredoc', () => {
   expect(shellParts('echo $((1<<2)) ; echo x').length).toBe(2)

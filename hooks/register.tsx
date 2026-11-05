@@ -53,7 +53,8 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   let after: string | undefined = before
   for (const w of writes) {
     if (w.sed) after = w.sed.scriptFile ? undefined : applySed(after, w.sed.scripts, w.sed.ere, w.sed.z)
-    else after = `${w.replaces ? '' : after}${w.text}${w.joins || w.text.endsWith('\n') ? '' : '\n'}`
+    // An overwrite that may not run leaves what this command wrote earlier in the running.
+    else after = `${w.replaces && !(w.mayNotRun && after !== before) ? '' : after}${w.text}${w.joins || w.text.endsWith('\n') ? '' : '\n'}`
     if (after === undefined) return undefined
   }
   return { file, before, after }

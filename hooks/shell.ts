@@ -10,14 +10,16 @@ export const escapeValue = ([whole, hex, short, long, octal, c]: RegExpMatchArra
   const code = hex ?? short ?? long ? parseInt((hex ?? short ?? long)!, 16) : octal ? parseInt(octal, 8) & 0xff : undefined
   return code !== undefined ? String.fromCodePoint(Math.min(code, 0x10ffff)) : ESCAPES[c!] ?? whole
 }
+/** Stepped by hand through `lastIndex`, so it is never the shared IN_FORMAT, whose position a later `matchAll` would copy. */
+const IN_ANSI = ESCAPE('[0-7]{1,3}')
 /** The inside of a `$'...'` word: every C escape read, `\cX` a control character, and the word ends at a nul, as bash takes it. */
 const ansiC = (body: string) => {
   let out = ''
   let at = 0
   while (at < body.length) {
     const control = /^\\c([\s\S])/.exec(body.slice(at))
-    IN_FORMAT.lastIndex = at
-    const m = body[at] === '\\' && !control ? IN_FORMAT.exec(body) : null
+    IN_ANSI.lastIndex = at
+    const m = body[at] === '\\' && !control ? IN_ANSI.exec(body) : null
     const one = control ? String.fromCharCode(control[1]!.toUpperCase().charCodeAt(0) ^ 64) : m ? escapeValue(m) : body[at]!
     if (one === '\0') return out
     out += one
@@ -43,16 +45,21 @@ const docMark = (n: number) => `${n}`
 /** The body in `docs` that a redirect's word stands for. */
 export const docOf = (word: string | undefined, docs: string[]) => docs[Number(/^(\d+)$/.exec(word ?? '')?.[1] ?? NaN)]
 
-/** The text of a heredoc whose body starts at `from`, and where the line after its end starts. With no end line it runs to the end of the command, as bash takes it. */
-const docBody = (command: string, from: number, end: string, tabs: boolean) => {
-  const lines: string[] = []
+/** The text of a heredoc whose body starts at `from`, each line with its new line, and where the line after its end starts. With no end line it runs to the end of the command, as bash takes it. With `continues`, an end word with no quoting, a backslash at a line's end joins the next line. */
+const docBody = (command: string, from: number, end: string, tabs: boolean, continues: boolean) => {
+  let text = ''
   for (let at = from; at <= command.length; ) {
-    const stop = command.indexOf('\n', at)
-    const raw = command.slice(at, stop < 0 ? undefined : stop)
+    let stop = command.indexOf('\n', at)
+    let raw = command.slice(at, stop < 0 ? undefined : stop)
+    while (continues && stop >= 0 && /(?<!\\)(?:\\\\)*\\$/.test(raw)) {
+      const more = command.indexOf('\n', stop + 1)
+      raw = raw.slice(0, -1) + command.slice(stop + 1, more < 0 ? undefined : more)
+      stop = more
+    }
     const line = tabs ? raw.replace(/^\t+/, '') : raw
-    if (line === end) return { text: lines.join('\n'), next: stop < 0 ? command.length : stop + 1 }
-    lines.push(line)
-    if (stop < 0) return { text: lines.join('\n'), next: command.length }
+    if (line === end) return { text, next: stop < 0 ? command.length : stop + 1 }
+    text += `${line}\n`
+    if (stop < 0) return { text, next: command.length }
     at = stop + 1
   }
   return undefined
@@ -69,18 +76,22 @@ const arithmetic = (command: string, i: number) => {
   return -1
 }
 
+/** Whether a `#` after `text` starts a word: a line continuation is no gap, and an escaped space or tab is part of the word. */
+const atWordStart = (text: string) => /(?:^|(?<!\\)(?:\\\\)*[\s;&|(])$/.test(text.replace(/\\\n/g, ''))
+
 /**
  * The parts of a shell command between `&&`, `||`, `;`, a single `&` and new lines that sit outside
  * quotes, comments left out. A heredoc's body is no part: it goes in `docs`, and `<<` keeps a word
  * that names it (docOf), so each heredoc stays in its place among the commands. As bash does, the
  * body starts on the line after the `<<` and ends at a line that is exactly the word (`<<-` takes
  * the tabs off). With no such line it runs to the end of the command; a `$((1<<2))` is a shift (arithmetic), never a heredoc.
+ * `gates` gets each part that ends in `&&` or `||`, with that operator.
  */
-export const shellParts = (command: string, docs: string[] = []): string[] => {
+export const shellParts = (command: string, docs: string[] = [], gates: string[] = []): string[] => {
   const parts: string[] = []
   let cur = ''
   let q: string | undefined
-  let waiting: { n: number; end: string; tabs: boolean }[] = []
+  let waiting: { n: number; end: string; tabs: boolean; continues: boolean }[] = []
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!
     if (q) {
@@ -108,7 +119,7 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
       continue
     }
     // A comment runs to the end of its line: an apostrophe in it opens no quote.
-    if (c === '#' && /^$|[\s;&|(]/.test(command[i - 1] ?? '')) {
+    if (c === '#' && atWordStart(cur)) {
       while (i + 1 < command.length && command[i + 1] !== '\n') i++
       continue
     }
@@ -121,7 +132,7 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
     const doc = c === '<' ? /^<<(-?)[ \t]*((?:\$'(?:[^'\\\n]|\\.)*'|'[^'\n]*'|"[^"\n]*"|\\.|[^\s'"\\<>;&|()])+)/.exec(command.slice(i)) : null
     if (doc) {
       const n = docs.push('') - 1
-      waiting.push({ n, end: docEnd(doc[2]!), tabs: doc[1] === '-' })
+      waiting.push({ n, end: docEnd(doc[2]!), tabs: doc[1] === '-', continues: !/['"\\]/.test(doc[2]!) })
       cur += `<<${docMark(n)}`
       i += doc[0].length - 1
       continue
@@ -134,7 +145,7 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
     if (c === '\n' && waiting.length) {
       let at = i + 1
       for (const w of waiting) {
-        const body = docBody(command, at, w.end, w.tabs)
+        const body = docBody(command, at, w.end, w.tabs, w.continues)
         if (!body) continue
         docs[w.n] = body.text
         at = body.next
@@ -146,6 +157,7 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
     if (c === '\n' && /(?<!\\)(?:\\\\)*\|\s*$/.test(cur)) continue
     const two = command.slice(i, i + 2)
     if (two === '&&' || two === '||') {
+      gates.push(`${cur.trim()} ${two}`)
       parts.push(cur)
       cur = ''
       i++
