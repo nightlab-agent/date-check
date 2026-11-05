@@ -212,15 +212,9 @@ async function changes($: EngineInterface, x: Call): Promise<Change[]> {
       // A file that exists or is made here: its text after the command's writes in order, judged as an Edit is.
       const r = exists === undefined ? undefined : await applied($, file, ws, exists)
       const created = exists === false
-      // No text could be worked out: each write's own text is one reading, as a skipped step leaves
-      // it, and one with no line end runs on into the next while the path means one place.
-      const also: string[] = []
-      ws.forEach((v, i) => {
-        const prev = ws[i - 1]
-        if (prev?.joins && !moved && !prev.sed && !prev.text.endsWith('\n') && !v.sed && !v.replaces) also[also.length - 1] += v.text
-        else also.push(v.text)
-      })
-      out.push(r ? { ...r, created } : { file, before: '', after: also.join('\n'), also, created })
+      // No text could be worked out: each write's own text is one reading, as a skipped step leaves it.
+      const also = ws.map(v => v.text)
+      out.push(r ? { ...r, created } : { file, before: '', after: ws.map(v => v.text).join('\n'), also, created })
     }
     return out
   }
