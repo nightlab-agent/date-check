@@ -146,6 +146,12 @@ year old and offered to rename it to `daily-brief-2026-11-01.md`.
 No files. It adds one line beside each prompt for Claude to read (the clock, above), and it
 reads the file a Write, an Edit or a shell write is about to change, to judge only the new lines. Nothing leaves your machine through this plugin: it makes no network calls.
 
+## When it is not for you
+
+- You need every date caught. It reads what a command writes and does not run it, so a date a command works out as it runs passes.
+- Your dates are in code. Only Markdown and text files are checked.
+- Your notes hold many future dates on purpose. Each new one is refused once and goes through when written again.
+
 ## How it works
 
 - One hook, `prompt.submit`, which Claude Code runs as each prompt enters: it reads Claude
