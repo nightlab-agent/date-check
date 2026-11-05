@@ -150,7 +150,7 @@ reads the file a Write, an Edit or a shell write is about to change, to judge on
 
 - You need every date caught. It reads what a command writes and does not run it, so a date a command works out as it runs passes.
 - Your dates are in code. Only Markdown and text files are checked.
-- Your notes hold many future dates on purpose. Each new one is refused once and goes through when written again.
+- Your notes hold many future dates on purpose. Each new one in a heading, a labelled field or at the start of a line is refused once and goes through when written again.
 
 ## How it works
 
