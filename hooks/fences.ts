@@ -16,11 +16,20 @@ const columnAfterSpace = (text: string, from: number) => {
  * leave the line judged: a line under a list item's text with no indent ends the item here, and a
  * fence in a `>` quote is no fence.
  */
-export const fences = (lines: string[]) => {
+export const fences = (lines: string[]) => fencesFrom(lines).lines
+
+/** Where a reading stops: the fence still open and the list items around the next line. */
+export type FenceEnd = { fence?: { mark: string; margin: number }; items: number[] }
+
+/** Two ends that read whatever comes next the same way give the same key. */
+export const endKey = (end: FenceEnd) => JSON.stringify([end.fence?.mark, end.fence?.margin, end.items])
+
+/** `fences`, going on from where an earlier reading ended, with that end for the next one. */
+export const fencesFrom = (lines: string[], start: FenceEnd = { items: [] }) => {
   const out = lines.map(() => ({ code: false, closed: false }))
-  let fence: { mark: string; from: number; margin: number } | undefined
+  let fence: { mark: string; from: number; margin: number } | undefined = start.fence && { ...start.fence, from: 0 }
   /** The column of the text of each list item the line is in, innermost last. */
-  const items: number[] = []
+  const items = [...start.items]
   const close = (to: number) => {
     for (let k = fence!.from; k <= to; k++) out[k]!.closed = true
     fence = undefined
@@ -54,5 +63,5 @@ export const fences = (lines: string[]) => {
       fence = { mark, from: i, margin }
     }
   }
-  return out
+  return { lines: out, end: { fence: fence && { mark: fence.mark, margin: fence.margin }, items } as FenceEnd }
 }

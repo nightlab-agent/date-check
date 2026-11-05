@@ -1,6 +1,8 @@
 import type { EngineInterface, Register } from 'claude-code'
-import { clockText, dateOfFile, dayOf, fillEdit, fillNow, gapText, judge, judgeName, LIMITS, newStamps, unfill } from './stamps'
+import { clockText, dateOfFile, dayOf, fillEdit, fillNow, gapText, judge, judgeName, LIMITS, stampReader, unfill } from './stamps'
 import type { Limits, Verdict } from './stamps'
+import { endKey, fencesFrom } from './fences'
+import type { FenceEnd } from './fences'
 import { applySed } from './sed'
 import { isText, PIPED, shellWrites } from './writes'
 import type { ShellWrite } from './writes'
@@ -47,6 +49,11 @@ const readAt = async ($: EngineInterface, file: string) => {
 }
 
 const STATES = 16
+/** How much of a command's earlier text is read whole again, for its sed and overwrite steps: the hook has 10 s. */
+const READ_BYTES = 8 * 1024 * 1024
+
+/** Where a reading of `text` ends, going on from `start`. */
+const fenceEnd = (text: string, start?: FenceEnd) => fencesFrom(text.split(/\r?\n/), start).end
 
 /** One file's text before and after a shell command's writes to it; undefined when it cannot be read or applied. */
 async function applied($: EngineInterface, file: string, writes: ShellWrite[], exists: boolean) {
@@ -56,24 +63,55 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   // Which steps run, and in what order, cannot be read from a command (`&&`, `if`, `exit`, `&`, a
   // function never called), so each write is judged on every text an earlier step could have left,
   // each reading with its own fences: a fence in one step never hides another step's text. A
-  // refusal only asks for the text again. Up to STATES of them, for a command of many writes.
+  // refusal only asks for the text again. An appended line reads the same after any two texts that
+  // end alike, so it is judged once for each way they end, however long the command. A sed reads the
+  // whole text: the start and the last STATES of them, up to READ_BYTES in all.
   const also: string[] = []
   const states = [before]
+  let end: FenceEnd | undefined
+  const ends = new Map<string, string>()
+  // Read only for a step that appends: a run of seds on a long file never asks.
+  const endNow = () => {
+    end ??= fenceEnd(after!)
+    if (!ends.has(endKey(end))) ends.set(endKey(end), after!)
+    return end
+  }
+  let spent = 0
+  // The text with each step that moved a fence left out: what a sed reads when those were skipped.
+  let plain = before
+  if (writes.some(w => !w.sed)) endNow()
   for (const w of writes) {
-    if (after !== before && (w.sed || w.replaces)) also.push(after)
+    if (after !== before && (w.sed || w.replaces) && spent <= READ_BYTES) {
+      spent += after.length
+      also.push(after)
+    }
     const line = `${w.text}${w.joins || w.text.endsWith('\n') ? '' : '\n'}`
     const step = (text: string) =>
       w.sed ? (w.sed.scriptFile ? undefined : applySed(text, w.sed.scripts, w.sed.ere, w.sed.z)) : w.replaces ? line : `${text}${line}`
-    // Text with no line end joins what comes next, so a skipped step leaves the same words only then.
-    if (w.sed || after.endsWith('\n')) {
-      for (const text of states.slice(-STATES, -1)) {
+    if (w.sed) {
+      const earlier = states.slice(0, -1)
+      for (const text of earlier.length < STATES ? earlier : [before, ...earlier.slice(2 - STATES)]) {
+        if (spent > READ_BYTES) break
+        spent += text.length
         const left = step(text)
         if (left !== undefined) also.push(left)
       }
+      const left = plain === after || spent > READ_BYTES ? undefined : step(plain)
+      if (left !== undefined) also.push(left)
+    } else if (!w.replaces && after.endsWith('\n')) {
+      // Text with no line end joins what comes next, so a skipped step leaves the same words only then.
+      const here = endKey(endNow())
+      for (const [key, text] of ends) if (key !== here) also.push(step(text)!)
     }
+    const appends = !w.sed && !w.replaces
+    const at = appends ? endNow() : undefined
+    const from = after === '' || after.endsWith('\n') ? at : undefined
     after = step(after)
     if (after === undefined) return undefined
     states.push(after)
+    end = from && fenceEnd(line, from)
+    if (end) endNow()
+    if (!from || endKey(end!) === endKey(from)) plain = step(plain) ?? plain
   }
   return { file, before, after, also }
 }
@@ -274,8 +312,9 @@ export const register: Register = (on, options: Options = {}) => {
         const name = w.created ? judgeName(w.file, now, limits) : undefined
         // Bare times in a file named for a later day are a plan for that day, not stamps.
         const day = dateOfFile(w.file)
-        const texts = [w.after, ...(w.also ?? [])].filter(Boolean)
-        const found = texts.flatMap(t => judge(newStamps(w.before, t, day && day <= dayOf(now) ? day : undefined), now, limits))
+        const texts = [...new Set([w.after, ...(w.also ?? [])])].filter(Boolean)
+        const read = stampReader(w.before, day && day <= dayOf(now) ? day : undefined)
+        const found = texts.flatMap(t => judge(read(t), now, limits))
         const verdicts = found.filter((v, i) => found.findIndex(o => o.stamp.text === v.stamp.text && o.stamp.line === v.stamp.line) === i)
         judged.push({ file: w.file, at: '', verdicts, name })
       }

@@ -6,7 +6,7 @@
 // Updated:, Released:, date: in frontmatter), or the opening of a line (a log line). A date
 // inside a sentence ("the outage on 2024-03-01") is an event, not a stamp, and is left alone.
 
-import { fences } from './fences'
+import { fences, fencesFrom } from './fences'
 
 export type Stamp = {
   /** The text as written, e.g. `2024-06-12` or `2026-10-31 16:05`. */
@@ -129,7 +129,10 @@ const lineStamp = (line: string, fileDate?: string): Stamp | undefined => {
  * in the whole of `after` (so a line inside a code block the file already had is seen as
  * code). A stamp whose text was on a line the change removes is carried over, not added.
  */
-export const newStamps = (before: string, after: string, fileDate?: string): Stamp[] => {
+export const newStamps = (before: string, after: string, fileDate?: string): Stamp[] => wholeReader(before, fileDate)(after)
+
+/** `newStamps` with what `before` alone decides read once: a long file read against many texts costs one reading of it. */
+const wholeReader = (before: string, fileDate?: string) => {
   // A line is the same line only in the same place: inside a closed code fence or out of one,
   // so a sample moved out of a fence into the text is a new line, and closing a fence left open
   // does not make every line under it new.
@@ -140,33 +143,66 @@ export const newStamps = (before: string, after: string, fileDate?: string): Sta
     const k = `${beforeIn[i]!.closed ? '`' : ' '}${l}`
     had.set(k, (had.get(k) ?? 0) + 1)
   })
-  const out: Stamp[] = []
-  const kept: string[] = []
-  const lines = after.split(/\r?\n/)
-  const afterIn = fences(lines)
-  for (const [i, line] of lines.entries()) {
-    const k = `${afterIn[i]!.closed ? '`' : ' '}${line}`
-    const n = had.get(k) ?? 0
-    const isNew = n === 0
-    if (!isNew) had.set(k, n - 1)
-    if (afterIn[i]!.code || indentedCode(line)) continue
-    const s = lineStamp(line, fileDate)
-    if (s) (isNew ? out.push(s) : kept.push(s.text))
+  const stamps = new Map<string, Stamp | undefined>()
+  const stampOf = (line: string) => {
+    if (!stamps.has(line)) stamps.set(line, lineStamp(line, fileDate))
+    return stamps.get(line)
   }
-  // Only a stamp the old text itself had carries over, read in the old text's own context (a
-  // date named in a removed sentence or code block is not one): the old text's stamps less those
-  // still on its unchanged lines.
-  const carried = new Map<string, number>()
-  if (before) {
-    for (const s of newStamps('', before, fileDate)) carried.set(s.text, (carried.get(s.text) ?? 0) + 1)
-    for (const s of kept) carried.set(s, (carried.get(s) ?? 0) - 1)
+  let old: Stamp[] | undefined
+  return (after: string): Stamp[] => {
+    const left = new Map(had)
+    const out: Stamp[] = []
+    const kept: string[] = []
+    const lines = after.split(/\r?\n/)
+    const afterIn = fences(lines)
+    for (const [i, line] of lines.entries()) {
+      const k = `${afterIn[i]!.closed ? '`' : ' '}${line}`
+      const n = left.get(k) ?? 0
+      const isNew = n === 0
+      if (!isNew) left.set(k, n - 1)
+      if (afterIn[i]!.code || indentedCode(line)) continue
+      const s = stampOf(line)
+      if (s) (isNew ? out.push(s) : kept.push(s.text))
+    }
+    // Only a stamp the old text itself had carries over, read in the old text's own context (a
+    // date named in a removed sentence or code block is not one): the old text's stamps less those
+    // still on its unchanged lines.
+    const carried = new Map<string, number>()
+    if (before) {
+      old ??= newStamps('', before, fileDate)
+      for (const s of old) carried.set(s.text, (carried.get(s.text) ?? 0) + 1)
+      for (const s of kept) carried.set(s, (carried.get(s) ?? 0) - 1)
+    }
+    return out.filter(s => {
+      const n = carried.get(s.text) ?? 0
+      if (n <= 0) return true
+      carried.set(s.text, n - 1)
+      return false
+    })
   }
-  return out.filter(s => {
-    const n = carried.get(s.text) ?? 0
-    if (n <= 0) return true
-    carried.set(s.text, n - 1)
-    return false
-  })
+}
+
+/**
+ * `newStamps` for many texts made from one `before`. Most of them only add whole lines after it, and
+ * every line of `before` reads the same in such a text, so only the added lines are read, going on
+ * from where `before` ended: a long file costs one reading, however many texts.
+ */
+export const stampReader = (before: string, fileDate?: string) => {
+  const whole = before === '' || before.endsWith('\n')
+  const end = whole ? fencesFrom(before.split(/\r?\n/)).end : undefined
+  const changed = wholeReader(before, fileDate)
+  return (after: string): Stamp[] => {
+    if (!end || !after.startsWith(before)) return changed(after)
+    const lines = after.slice(before.length).split(/\r?\n/)
+    const read = fencesFrom(lines, end).lines
+    const out: Stamp[] = []
+    for (const [i, line] of lines.entries()) {
+      if (read[i]!.code || indentedCode(line)) continue
+      const s = lineStamp(line, fileDate)
+      if (s) out.push(s)
+    }
+    return out
+  }
 }
 
 /** The stamps in some lines of text. */
