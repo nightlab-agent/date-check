@@ -63,6 +63,34 @@ export const forms = [
     `echo -e -E 'x\\n${date}' >notes.md`, `x\\n${date}\n`, false],
   ['checked: echo -e overrides -E in a combined option',
     `echo -Ee 'x\\n${date}' >notes.md`, `x\n${date}\n`, true],
+  // An overwrite that may not run keeps what the command wrote before it.
+  ['a skipped overwrite after a failed gate', `echo '${date}' >notes.md; false && echo ok >notes.md; :`, `${date}\n`, true],
+  ['comparison: an overwrite that runs', `echo '${date}' >notes.md; true && echo ok >notes.md`, 'ok\n', false],
+  ['a skipped overwrite under an if', `echo '${date}' >notes.md; if false; then echo ok >notes.md; fi`, `${date}\n`, true],
+  ['a skipped overwrite in a loop over nothing', `echo '${date}' >notes.md; for f in; do echo ok >notes.md; done`, `${date}\n`, true],
+  ['a skipped overwrite in a case', `echo '${date}' >notes.md; case x in y) echo ok >notes.md;; esac`, `${date}\n`, true],
+  ['a skipped overwrite after an or', `echo '${date}' >notes.md; true || echo ok >notes.md`, `${date}\n`, true],
+  ['a skipped overwrite in a subshell', `echo '${date}' >notes.md; (false && echo ok >notes.md); :`, `${date}\n`, true],
+  ['comparison: a plain sequence', `echo '${date}' >notes.md; echo ok >notes.md`, 'ok\n', false],
+
+  // A # opens a comment only where a word starts.
+  ['a hash after an escaped space', `echo '${date}'\\ #x >notes.md`, `${date} #x\n`, true],
+  ['a hash after an escaped tab', `echo '${date}'\\\t#x >notes.md`, `${date}\t#x\n`, true],
+  ['a hash after a line continuation', `echo '${date}'\\\n#x >notes.md`, `${date}#x\n`, true],
+  ['comparison: a real comment after an escaped backslash', `echo a\\\\ >notes.md #'${date}'`, 'a\\\n', false],
+  ['comparison: a real comment after a continued line', `echo ok >notes.md \\\n#'${date}'`, 'ok\n', false],
+
+  // A $'...' word leaves the next printf its escapes.
+  ['printf after an ANSI-C word', `printf '\\n%s' $'${date}' >notes.md`, `\n${date}`, true],
+  ['comparison: printf after a plain word', `printf '\\n%s' '${date}' >notes.md`, `\n${date}`, true],
+
+  // Of a command's output redirects the last one gets the text.
+  ['the last redirect of two gets the text', `echo '${date}' >/dev/null >notes.md`, `${date}\n`, true],
+  ['comparison: a redirect to itself changes nothing', `echo '${date}' >notes.md >&1`, `${date}\n`, true],
+  ['the first of two redirects stays empty', `echo '${date}' >notes.md >/dev/null`, '', false],
+  ['an unquoted heredoc joins a continued line', `cat <<EOF >notes.md\nPlanned for \\\n${date}\nEOF`, `Planned for ${date}\n`, false],
+  ['comparison: a quoted heredoc keeps the lines apart', `cat <<'EOF' >notes.md\nPlanned for \\\n${date}\nEOF`, `Planned for \\\n${date}\n`, true],
+  ['an empty heredoc adds no new line', `printf 'Planned for ' >notes.md; cat <<EOF >>notes.md\nEOF\necho '${date}' >>notes.md`, `Planned for ${date}\n`, false],
 ] as const
 
 export const characters = ['🇺🇸', '👩‍💻', '👍🏽', 'e\u0301'] as const
