@@ -70,11 +70,19 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
   const states = [before]
   let end: FenceEnd | undefined
   const ends = new Map<string, string>()
+  // Where the last line starts and how the text reads up to there, so an append reads on from it.
+  let lastLine: { cut: number; at: FenceEnd } | undefined
+  const readEnd = (text: string) => {
+    if (lastLine) return fenceEnd(text.slice(lastLine.cut), lastLine.at)
+    const cut = text.lastIndexOf('\n') + 1
+    lastLine = { cut, at: fencesFrom(text.slice(0, cut).split(/\r?\n/).slice(0, -1)).end }
+    return fenceEnd(text.slice(cut), lastLine.at)
+  }
   // A text with no line end joins the next line, so it does not read like one that has one.
   const textKey = (at: FenceEnd, text: string) => `${endKey(at)}${text === '' || text.endsWith('\n')}`
   // Read only for a step that appends: a run of seds on a long file never asks.
   const endNow = () => {
-    end ??= fenceEnd(after!)
+    end ??= readEnd(after!)
     if (!ends.has(textKey(end, after!))) ends.set(textKey(end, after!), after!)
     return end
   }
@@ -108,6 +116,7 @@ async function applied($: EngineInterface, file: string, writes: ShellWrite[], e
     const appends = !w.sed && !w.replaces
     const at = appends ? endNow() : undefined
     const from = after === '' || after.endsWith('\n') ? at : undefined
+    if (!appends) lastLine = undefined
     after = step(after)
     if (after === undefined) return undefined
     states.push(after)
