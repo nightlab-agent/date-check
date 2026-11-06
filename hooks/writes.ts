@@ -162,23 +162,29 @@ const ASSIGNMENT = /^([A-Za-z_]\w*)=([\s\S]*)$/
 /** Names a command sets, in step order: each holds a plain value until a step may have changed it. Inside a subshell, `if` or a loop a name is forgotten: that step may not run, or may not last. */
 const nameKeeper = () => {
   const vars = new Map<string, string>()
+  const assigned = new Set<string>()
   let depth = 0
-  const note = (words: Word[]) => {
+  const note = (words: Word[], conditional: boolean, background: boolean) => {
     for (const w of words) {
       if (w.pipe && w.text === '(') depth++
       if (w.pipe && w.text === ')') depth = Math.max(0, depth - 1)
     }
-    const first = words[0]?.quoted ? '' : words[0]?.text
-    if (first === 'unset') for (const w of words.slice(1)) vars.delete(w.text)
+    const body = [...words]
+    while (body[0] && !body[0].quoted && /^(?:\(|then|else|elif|do)$/.test(body[0].text)) body.shift()
+    const first = body[0]?.quoted ? '' : body[0]?.text
+    if (first === 'for' && body[1]) { vars.delete(body[1]!.text); assigned.add(body[1]!.text) }
     if (/^(?:if|for|while|until|case)$/.test(first ?? '')) depth++
-    const body = /^(?:then|else|elif|do)$/.test(first ?? '') ? words.slice(1) : words
+    if (body[0]?.text === 'unset') for (const w of body.slice(1)) vars.delete(w.text)
     const set = body[0]?.text === 'export' ? body.slice(1) : body
     const only = set.length > 0 && set.every(w => !w.quoted && !w.redirect && !w.pipe && ASSIGNMENT.test(w.text))
-    if (depth > 0) for (const w of set) { const m = w.quoted ? null : ASSIGNMENT.exec(w.text); if (m) vars.delete(m[1]!) }
+    if (depth > 0) for (const w of set) { const m = w.quoted ? null : ASSIGNMENT.exec(w.text); if (m) { vars.delete(m[1]!); assigned.add(m[1]!) } }
     else if (only) for (const w of set) {
       const [, name, value] = ASSIGNMENT.exec(w.text)!
-      if (w.expands) vars.delete(name!)
+      // A conditional reassignment may leave the earlier value; a background assignment never lasts.
+      // A first conditional assignment still names a possible write, as other optional writes do.
+      if (w.expands || background || (conditional && assigned.has(name!))) vars.delete(name!)
       else vars.set(name!, value!)
+      assigned.add(name!)
     }
     if (/^(?:fi|done|esac)$/.test(first ?? '')) depth = Math.max(0, depth - 1)
     return only
@@ -186,8 +192,12 @@ const nameKeeper = () => {
   /** A word with the names filled in: all of them known, it reads as a file named outright. */
   const fill = (w: Word) => {
     if (!w.expands) return w
-    const text = w.text.replace(/\$(?:\{(\w+)\}|(\w+))/g, (whole, a, b) => vars.get(a ?? b) ?? whole)
-    return text === w.text ? w : { ...w, text, expands: /[*?[{$`]/.test(text) }
+    const parameter = /\$(?:\{(\w+)\}|(\w+))/g
+    const rest = w.text.replace(parameter, (whole, a, b) => vars.has(a ?? b) ? '' : whole)
+    const text = w.text.replace(parameter, (whole, a, b) => vars.get(a ?? b) ?? whole)
+    // Expansion does not re-read a value's $ or backtick; only an unquoted value can split or glob.
+    const expands = /[$`]/.test(rest) || (!!w.expandsOutsideQuotes && /[\s*?[{]/.test(text))
+    return expands ? w : { ...w, text, expands: false }
   }
   return { note, fill }
 }
@@ -245,8 +255,14 @@ export const shellWrites = (command: string): ShellWrite[] => {
   const out: ShellWrite[] = []
   const docs: string[] = []
   const names = nameKeeper()
-  for (const part of shellParts(command, docs)) {
-    if (names.note(shellWords(part))) continue
+  const separators: string[] = []
+  let conditional = false
+  for (const [i, part] of shellParts(command, docs, separators).entries()) {
+    const words = shellWords(part)
+    const maybe = conditional
+    // A newline after && or || does not end the condition.
+    if (words.length) conditional = /^(?:&&|\|\|)$/.test(separators[i] ?? '')
+    if (names.note(words, maybe, separators[i] === '&')) continue
     const sed = sedInPlace(part)
     if (sed) {
       // sed reads its scripts as one, a new line between them (`-e 'a\\' -e 'text'`).

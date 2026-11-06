@@ -98,8 +98,9 @@ const atWordStart = (text: string) => {
  * that names it (docOf), so each heredoc stays in its place among the commands. As bash does, the
  * body starts on the line after the `<<` and ends at a line that is exactly the word (`<<-` takes
  * the tabs off). With no such line it runs to the end of the command; a `$((1<<2))` is a shift (arithmetic), never a heredoc.
+ * When supplied, `separators` receives the operator after each part except the last.
  */
-export const shellParts = (command: string, docs: string[] = []): string[] => {
+export const shellParts = (command: string, docs: string[] = [], separators: string[] = []): string[] => {
   const parts: string[] = []
   let cur = ''
   let q: string | undefined
@@ -170,6 +171,7 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
     const two = command.slice(i, i + 2)
     if (two === '&&' || two === '||') {
       parts.push(cur)
+      separators.push(two)
       cur = ''
       i++
       continue
@@ -177,6 +179,7 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
     // A single `&` (run in the background) ends a command too; not the `&` of `>&2`, `2>&1`, `&>`, `&>>` or `|&`.
     if (c === ';' || c === '\n' || (c === '&' && !/[>|]/.test(command[i - 1] ?? '') && command[i + 1] !== '>')) {
       parts.push(cur)
+      separators.push(c)
       cur = ''
       continue
     }
@@ -187,7 +190,7 @@ export const shellParts = (command: string, docs: string[] = []): string[] => {
 }
 
 
-export type Word = { text: string; quoted: boolean; pipe?: boolean; redirect?: boolean; expands?: boolean }
+export type Word = { text: string; quoted: boolean; pipe?: boolean; redirect?: boolean; expands?: boolean; expandsOutsideQuotes?: boolean }
 
 const REDIRECT = /^(?:&>>?|>>|>\||>&|>|<<<|<<-?|<&|<>|<)/
 
@@ -217,16 +220,19 @@ const substitutionEnd = (part: string, from: number) => {
  * quote, a backslash or `|;&`, so a Windows path (`E:\p\log.md`) keeps its separators; a backslash and a
  * new line, outside quotes or in double quotes, are both dropped. `expands`: the shell works out the word
  * when it runs: a `*?[{` outside quotes, a `$` or backtick outside single quotes.
+ * `expandsOutsideQuotes` keeps whether a filled value may still split into words or glob.
  */
 export const shellWords = (part: string): Word[] => {
   const out: Word[] = []
   let text: string | undefined
   let quoted = false
   let expands = false
+  let expandsOutsideQuotes = false
   const push = () => {
-    if (text !== undefined) out.push({ text, quoted, ...(expands ? { expands } : {}) })
+    if (text !== undefined) out.push({ text, quoted, ...(expands ? { expands } : {}), ...(expandsOutsideQuotes ? { expandsOutsideQuotes } : {}) })
     text = undefined
     expands = false
+    expandsOutsideQuotes = false
   }
   for (let i = 0; i < part.length; i++) {
     const c = part[i]!
@@ -264,6 +270,7 @@ export const shellWords = (part: string): Word[] => {
       const end = substitutionEnd(part, i + 1)
       text += part.slice(i, end + 1)
       expands = true
+      expandsOutsideQuotes = true
       i = end
     } else if (c === '$' && part[i + 1] === "'") {
       // `$'...'`: quoted, with its C escapes read.
@@ -290,7 +297,7 @@ export const shellWords = (part: string): Word[] => {
       text += /[\s'"\\|;&*?[\]{}$`]/.test(n) ? n : c + n
       i++
     } else {
-      if (/[*?[{$`]/.test(c)) expands = true
+      if (/[*?[{$`]/.test(c)) expands = expandsOutsideQuotes = true
       text += c
     }
   }
