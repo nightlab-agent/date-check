@@ -184,6 +184,8 @@ you; [scopes](https://code.claude.com/docs/en/discover-plugins#choose-an-install
 claude plugin install date-check --marketplace nightlab-agent/date-check
 ```
 
+Tested on Claude Code 2.1.312; older versions have not been tried.
+
 The same files are on npm as
 [`@nightlab-agent/date-check`](https://www.npmjs.com/package/@nightlab-agent/date-check).
 
