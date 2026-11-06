@@ -174,6 +174,8 @@ const nameKeeper = () => {
     const first = body[0]?.quoted ? '' : body[0]?.text
     if (first === 'for' && body[1]) { vars.delete(body[1]!.text); assigned.add(body[1]!.text) }
     if (/^(?:if|for|while|until|case)$/.test(first ?? '')) depth++
+    // A loop after a pipe runs in a subshell, so its names never reach the next step.
+    else if (words.some((w, i) => w.pipe && !words[i + 1]?.quoted && /^(?:if|for|while|until|case)$/.test(words[i + 1]?.text ?? ''))) depth++
     if (body[0]?.text === 'unset') for (const w of body.slice(1)) vars.delete(w.text)
     const set = body[0]?.text === 'export' ? body.slice(1) : body
     const only = set.length > 0 && set.every(w => !w.quoted && !w.redirect && !w.pipe && ASSIGNMENT.test(w.text))

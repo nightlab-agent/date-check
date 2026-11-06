@@ -4,6 +4,8 @@
 
 - A stamp written to a file named by a variable is judged: `f=log/today.md; echo "- 18:30 done" >> "$f"` went through before. Claude Code wrote that form in a real terminal on 2026-11-05 and a future time passed. The name counts when a step of the command sets it to a plain value, `export` too. A value the shell works out, or one set inside `if`, a loop or a subshell, is not followed: the name counts as unknown after it. A loop's iterator, `unset` after `then` or `do`, a conditional reassignment and a background assignment forget the earlier name too. A quoted variable keeps its value literal, including a `*` or bracket in a file's name. A variable that still needs unquoted word splitting or globbing is not followed, so a stamp written through it can pass. Known limits: an initial assignment after `&&` or `||` names a possible write even if it is skipped; a word that mixes a quoted `$` with a name, such as `"$x"'$f'`, is read as if the `$` were not quoted.
 
+- Known limit, both ways, for a name followed this way. `+=`, `read`, `declare`, `printf -v`, a `{ }` group and the second branch of a `case` do not change the name it holds, and `"$f"x` reads as `$fx`. A step that writes elsewhere can then be refused once, and it goes through when written again. `f=app; f+=.md; echo "- 18:30 done" >> "$f"` can pass a future time.
+
 ## 0.1.7 - 2026-11-05
 
 Seen in a Claude Code terminal on 2026-11-05: a `sed -i` writing a future date into a heading was refused with the real time, and a `sed -i` with no date ran. The known limits below were not on that screen, and Claude did not try again after the refusal.
