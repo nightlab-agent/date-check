@@ -169,7 +169,13 @@ const wholeReader = (before: string, fileDate?: string) => {
     // still on its unchanged lines.
     const carried = new Map<string, number>()
     if (before) {
-      old ??= newStamps('', before, fileDate)
+      // The old lines and their fence positions are already known. Reuse the
+      // stamp cache instead of splitting, fencing and parsing that text again.
+      old ??= beforeLines.flatMap((line, i) => {
+        if (beforeIn[i]!.code || indentedCode(line)) return []
+        const s = stampOf(line)
+        return s ? [s] : []
+      })
       for (const s of old) carried.set(s.text, (carried.get(s.text) ?? 0) + 1)
       for (const s of kept) carried.set(s, (carried.get(s) ?? 0) - 1)
     }
@@ -182,12 +188,8 @@ const wholeReader = (before: string, fileDate?: string) => {
   }
 }
 
-/**
- * `newStamps` for many texts made from one `before`. Most of them only add to it, and every whole
- * line of `before` reads the same in such a text, so only the rest is read, going on from there: a
- * long file costs one reading, however many texts.
- */
-export const stampReader = (before: string, fileDate?: string) => {
+/** Read appended text from the old last line, reusing the earlier lines' fence state. */
+const appendReader = (before: string, fileDate?: string) => {
   // A last line with no line end may be joined to what comes next: it is read again, and what it held carries.
   const start = before.lastIndexOf('\n') + 1
   const { end } = fencesFrom(before.slice(0, start).split(/\r?\n/))
@@ -197,15 +199,26 @@ export const stampReader = (before: string, fileDate?: string) => {
     return lines.flatMap((line, i) => (seen[i]!.code || indentedCode(line) ? [] : [lineStamp(line, fileDate)].filter(s => s !== undefined)))
   }
   const had = read(before.slice(start)).map(s => s.text)
-  const changed = wholeReader(before, fileDate)
   return (after: string): Stamp[] => {
-    if (!after.startsWith(before)) return changed(after)
     const carried = [...had]
     return read(after.slice(start)).filter(s => {
       const i = carried.indexOf(s.text)
       if (i >= 0) carried.splice(i, 1)
       return i < 0
     })
+  }
+}
+
+/** `newStamps` for many texts made from one `before`, reusing each kind of reader once built. */
+export const stampReader = (before: string, fileDate?: string) => {
+  // Each kind of change builds only the reader it needs. An unchanged text
+  // adds no stamps and needs neither a line map nor a fence scan.
+  let appended: ReturnType<typeof appendReader> | undefined
+  let changed: ReturnType<typeof wholeReader> | undefined
+  return (after: string): Stamp[] => {
+    if (after === before) return []
+    if (after.startsWith(before)) return (appended ??= appendReader(before, fileDate))(after)
+    return (changed ??= wholeReader(before, fileDate))(after)
   }
 }
 

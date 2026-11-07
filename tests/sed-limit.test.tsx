@@ -1,5 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { bash, world } from './shell-world'
+import { sedCost } from './work-cases'
+import { checkWorkCases } from './work-world'
 
 const T = { timeoutMs: 120_000 }
 const times = (n: number, f: (i: number) => string) => Array.from({ length: n }, (_, i) => f(i)).join('; ')
@@ -38,19 +40,4 @@ test('CMP the same below the limit', T, async ($, on) => {
 })
 
 // The limit counts sed commands, not -e flags.
-const big = Array.from({ length: 65000 }, (_, i) => `- note ${i} about something that happened, fifty characters`).join('\n') + '\n'
-const ms = async (f: () => Promise<unknown>) => { const t = performance.now(); await f(); return performance.now() - t }
-test('33 seds of one script holding 40 s commands stay inside the hook time', T, async ($, on) => {
-  world(on, { 'CHANGELOG.md': big })
-  const one = Array.from({ length: 40 }, (_, i) => `s/note ${i} /item ${i} /`).join(';')
-  const t = await ms(() => bash($, times(33, () => `sed -i '${one}' CHANGELOG.md`)))
-  expect(t).toBeLessThan(10000)
-})
-test('a sed of 41 commands just inside the limit is run, and the date it makes is judged', T, async ($, on) => {
-  world(on, { 'CHANGELOG.md': `TBD\n${big.slice(0, 2_900_000)}\n` })
-  const one = Array.from({ length: 40 }, (_, i) => `s/note ${i} /item ${i} /`).join(';')
-  const t = await ms(async () => {
-    expect((await bash($, `sed -i '${one};s/^TBD$/2027-01-15/' CHANGELOG.md`)).deny ?? '').toContain('2027-01-15')
-  })
-  expect(t).toBeLessThan(10000)
-})
+checkWorkCases(sedCost)

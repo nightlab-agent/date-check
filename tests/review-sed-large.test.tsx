@@ -1,5 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { bash, world } from './shell-world'
+import { sedLarge } from './work-cases'
+import { checkWorkCases } from './work-world'
 
 const T = { timeoutMs: 180_000 }
 const MiB = 1024 * 1024
@@ -44,22 +46,7 @@ test('F3 CMP 31 of them', T, async ($, on) => {
 })
 
 // F4: the limit counts one text, the steps run over more.
-const lines = Array.from({ length: 19000 }, (_, i) => `- note ${i} about something that happened, fifty characters`).join('\n') + '\n'
-const ms = async (f: () => Promise<unknown>) => { const t = performance.now(); await f(); return Math.round(performance.now() - t) }
-const one = Array.from({ length: 110 }, (_, i) => `s/note ${i} /item ${i} /`).join(';')
-const eight = Array.from({ length: 8 }, (_, i) => `echo a${i} >>CHANGELOG.md`).join('; ')
-test('F4 eight appends then one sed inside the limit stay inside the hook time', T, async ($, on) => {
-  world(on, { 'CHANGELOG.md': lines })
-  const t = await ms(() => bash($, `${eight}; sed -i '${one}' CHANGELOG.md`))
-  console.log('F4 ms', t, 'size', lines.length, 'counted', (lines.length + 64) * 110)
-  expect(t).toBeLessThan(10000)
-})
-test('F4 CMP the same sed alone', T, async ($, on) => {
-  world(on, { 'CHANGELOG.md': lines })
-  const t = await ms(() => bash($, `sed -i '${one}' CHANGELOG.md`))
-  console.log('F4 CMP ms', t)
-  expect(t).toBeLessThan(10000)
-})
+checkWorkCases(sedLarge)
 
 // F5: a sed that needs no run throws away the date an earlier sed made.
 const small = 'YEAR-01-15\n'

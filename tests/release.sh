@@ -9,6 +9,7 @@ set -e
 cd "$(dirname "$0")/.."
 claude plugin validate .
 claude plugin test .
+bun tests/work-budget.ts
 # The shell forms against real Bash. No Bun fails here; NO_BASH_CHECK=1 says so out loud.
 if [ -n "$NO_BASH_CHECK" ]; then echo 'bash check: NOT RUN (NO_BASH_CHECK)'; else bun tests/review-second-bash.ts; bun tests/review-final-sed-bash.ts; bun tests/review-variable-bash.ts; fi
 sh tests/typecheck.sh
