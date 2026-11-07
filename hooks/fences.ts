@@ -65,3 +65,6 @@ export const fencesFrom = (lines: string[], start: FenceEnd = { items: [] }) => 
   }
   return { lines: out, end: { fence: fence && { mark: fence.mark, margin: fence.margin }, items } as FenceEnd }
 }
+
+/** A line inside an indented code block: four spaces or a tab, not a list item. */
+export const indentedCode = (line: string) => /^(?: {4}|\t)/.test(line) && !/^\s*(?:[-*+]|\d+[.)])\s/.test(line)

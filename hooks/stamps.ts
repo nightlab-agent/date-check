@@ -6,7 +6,10 @@
 // Updated:, Released:, date: in frontmatter), or the opening of a line (a log line). A date
 // inside a sentence ("the outage on 2024-03-01") is an event, not a stamp, and is left alone.
 
-import { fences, fencesFrom } from './fences'
+import { fences, fencesFrom, indentedCode } from './fences'
+import { dayOf, nowText } from './fill'
+
+export { dayOf, fillEdit, fillNow, nowText, unfill } from './fill'
 
 export type Stamp = {
   /** The text as written, e.g. `2024-06-12` or `2026-10-31 16:05`. */
@@ -110,8 +113,6 @@ export const dateOfFile = (path: string) => {
   return m && valid(Number(m[1]), Number(m[2]), Number(m[3])) ? `${m[1]}-${m[2]}-${m[3]}` : undefined
 }
 
-/** A line inside an indented code block: four spaces or a tab, not a list item. */
-const indentedCode = (line: string) => /^(?: {4}|\t)/.test(line) && !/^\s*(?:[-*+]|\d+[.)])\s/.test(line)
 
 /** The stamp a line carries, if any. `fileDate` lets a bare `16:05` opening a line count as a stamp of that day. */
 const lineStamp = (line: string, fileDate?: string): Stamp | undefined => {
@@ -237,76 +238,6 @@ export const addedLines = (before: string, after: string) => {
   }
   return added.join('\n')
 }
-
-const pad = (n: number) => String(n).padStart(2, '0')
-/** `YYYY-MM-DD` of a moment in local time, or at a fixed UTC offset in minutes. */
-export const dayOf = (ms: number, offset?: number) => {
-  const d = offset === undefined ? new Date(ms) : new Date(ms + offset * 60000)
-  return offset === undefined
-    ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-    : `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
-}
-/**
- * The local time now as a person writes it, with its offset so that the hour the clocks go back
- * over is not read twice: `2026-10-31 16:42 local time, UTC-04:00`.
- */
-export const nowText = (ms: number) => {
-  const d = new Date(ms)
-  const o = -d.getTimezoneOffset()
-  const zone = `UTC${o < 0 ? '-' : '+'}${pad(Math.floor(Math.abs(o) / 60))}:${pad(Math.abs(o) % 60)}`
-  return `${dayOf(ms)} ${pad(d.getHours())}:${pad(d.getMinutes())} local time, ${zone}`
-}
-
-/**
- * Placeholders the agent writes instead of typing a time, filled from the clock as the call
- * lands: `⟦NOW⟧` 2026-11-01 06:20, `⟦DATE⟧` 2026-11-01, `⟦TIME⟧` 06:20, `⟦NOW-ISO⟧`
- * 2026-11-01T06:20:41-05:00, all local. One in code is kept as written (a README that shows
- * the placeholder): a code span, a ``` or ~~~ fence (fences), and, in a file (`indented`), an indented code line, as the judge reads code.
- * `only` fills just that span of the text.
- * Exactly these spellings: `⟦now⟧`, `[NOW]` and `⟦NOW ⟧` are text. ⟦NOW⟧ has a space in
- * it: in a file name or an unquoted shell word, ⟦DATE⟧ is the one to use.
- */
-export const fillNow = (text: string, ms: number, indented = true, only?: [number, number]): { text: string; filled: string[] } => {
-  const d = new Date(ms)
-  const o = -d.getTimezoneOffset()
-  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
-  const iso = `${dayOf(ms)}T${time}:${pad(d.getSeconds())}${o < 0 ? '-' : '+'}${pad(Math.floor(Math.abs(o) / 60))}:${pad(Math.abs(o) % 60)}`
-  const value: Record<string, string> = { 'NOW-ISO': iso, NOW: `${dayOf(ms)} ${time}`, DATE: dayOf(ms), TIME: time }
-  const filled = new Set<string>()
-  const all = text.split('\n')
-  const inFence = fences(all)
-  let start = 0
-  const lines = all.map((line, i) => {
-    const at = start
-    start += line.length + 1
-    if (inFence[i]!.code || (indented && indentedCode(line))) return line
-    return line.replace(/(?<!`)(`+)(?!`)[^]*?(?<!`)\1(?!`)|⟦(NOW-ISO|NOW|DATE|TIME)⟧/g, (m, code: string | undefined, tok: string | undefined, off: number) => {
-      if (code !== undefined || !tok) return m
-      if (only && (at + off < only[0] || at + off >= only[1])) return m
-      filled.add(`⟦${tok}⟧ ${value[tok]}`)
-      return value[tok]!
-    })
-  })
-  return { text: lines.join('\n'), filled: [...filled] }
-}
-
-/**
- * An Edit's new text filled where it lands in the file, so one that lands in a fence or a code span
- * of the file is kept. The file's other lines are read and left as they are. With `replace_all` it
- * is the first place that decides, the one text going to every place.
- */
-export const fillEdit = (file: string, old: string, text: string, ms: number) => {
-  const at = file.indexOf(old)
-  const tail = file.length - at - old.length
-  const f = fillNow(file.slice(0, at) + text + file.slice(at + old.length), ms, true, [at, at + text.length])
-  return { text: f.text.slice(at, f.text.length - tail), filled: f.filled }
-}
-
-/** A line as written before filling: each filled value back to its placeholder, longest first. */
-export const unfill = (line: string, filled: string[]) =>
-  filled.map(f => [f.slice(0, f.indexOf('⟧') + 1), f.slice(f.indexOf('⟧') + 2)] as const)
-    .sort((x, y) => y[1].length - x[1].length)
-    .reduce((l, [tok, v]) => l.split(v).join(tok), line)
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 /** The zone's name where the runtime knows it (`America/New_York, EST`); '' where it does not. */
