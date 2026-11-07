@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.9 - 2026-11-07
 
 - Checks build only the reader a change needs, skip unchanged text, and reuse parsed stamps when comparing changed lines. Long-file budget checks count file reads and text scanned instead of asserting elapsed time on a shared machine; the engine's 10 s hook limit is unchanged.
 
