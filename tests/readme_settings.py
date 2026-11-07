@@ -6,9 +6,9 @@ the placeholder filling were missing, so a reader of that line missed two switch
 import json, re, sys
 
 titles = {k: v['title'] for k, v in json.load(open('.claude-plugin/plugin.json'))['userConfig'].items()}
-m = re.search(r'^Settings \(asked when you enable the plugin\):(.*?)(?:\n\n)', open('README.md').read(), re.M | re.S)
+m = re.search(r'^Settings \(defaults; [^)]*\):(.*?)(?:\n\n)', open('README.md').read(), re.M | re.S)
 if not m:
-    sys.exit("readme settings: no 'Settings (asked when you enable the plugin):' paragraph")
+    sys.exit("readme settings: no 'Settings (defaults; ...):' paragraph")
 line = ' '.join(m.group(1).split()).lower()
 missing = [k for k, t in titles.items() if t.lower() not in line]
 if missing:

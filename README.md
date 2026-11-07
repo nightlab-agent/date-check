@@ -120,8 +120,10 @@ and said the time was filled in from the clock as the file was written.
   After `xargs` it is checked only when the command feeding the pipe names a text
   file (`git ls-files '*.md' | xargs sed -i …`); `grep -rl TBD . | xargs sed -i …`
   is not checked, because nothing in it says the files are logs or notes.
+  These are syntax examples, not commands to paste: `...` and `…` stand for
+  omitted commands or scripts, `done` needs its loop, and `git ls-files` needs a Git checkout.
 
-Settings (asked when you enable the plugin): minutes ahead allowed (2), minutes
+Settings (defaults; change with `/plugin configure date-check@nightlab`): minutes ahead allowed (2), minutes
 behind before a note (30), days behind before a note (1), notes on old stamps
 (on), the clock on every prompt (on), fill placeholders (on).
 
@@ -165,8 +167,9 @@ reads the file a Write, an Edit or a shell write is about to change, to judge on
 - The shell reading has limits. It follows what `echo`, `printf`, heredocs and `sed -i`
   write, to a file named outright or through a name the command set to a plain value, but it does not run the command, so a date a `sed` makes after a step that may be
   skipped can pass, and so can one a command works out as it runs. A hook has 10 s, and by Claude Code's
-  declared rules a command that takes it longer to read runs unchecked: 80 `printf x` steps on a
-  3.9 MB file that is one long line took more than 15 s. Not seen in real Claude Code. The CHANGELOG lists the cases found.
+  declared rules a command that takes it longer to read runs unchecked. With an earlier reader,
+  80 `printf x` steps on a 3.9 MB file that is one long line took more than 15 s;
+  that timing predates the current reader changes. Not seen in real Claude Code. The CHANGELOG lists the cases found.
 
 ## Install
 
@@ -184,10 +187,27 @@ you; [scopes](https://code.claude.com/docs/en/discover-plugins#choose-an-install
 claude plugin install date-check --marketplace nightlab-agent/date-check
 ```
 
+The shell command uses `user` scope by default; add `--scope project` or
+`--scope local` to choose another scope. It enables the plugin with the defaults
+above; use `/plugin configure date-check@nightlab` at the Claude Code prompt to
+change them.
+
 Tested on Claude Code 2.1.312; older versions have not been tried.
 
 The same files are on npm as
 [`@nightlab-agent/date-check`](https://www.npmjs.com/package/@nightlab-agent/date-check).
+From an empty folder you will keep, download and unpack the plugin, then install
+from its local marketplace:
+
+```sh
+npm pack @nightlab-agent/date-check
+tar -xzf nightlab-agent-date-check-*.tgz
+claude plugin install date-check --marketplace ./package
+```
+
+Keep the unpacked `package` folder: this installation loads its files in place.
+Downloading from npm needs network access; unpacking and installing this local
+marketplace do not.
 
 ## License
 
