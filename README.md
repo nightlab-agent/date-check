@@ -120,7 +120,7 @@ and said the time was filled in from the clock as the file was written.
   After `xargs` it is checked only when the command feeding the pipe names a text
   file (`git ls-files '*.md' | xargs sed -i …`); `grep -rl TBD . | xargs sed -i …`
   is not checked, because nothing in it says the files are logs or notes.
-  These are syntax examples, not commands to paste: `...` and `…` stand for
+  The commands in this list are syntax examples, not commands to paste: `...` and `…` stand for
   omitted commands or scripts, `done` needs its loop, and `git ls-files` needs a Git checkout.
 
 Settings (defaults; change with `/plugin configure date-check@nightlab`): minutes ahead allowed (2), minutes
@@ -167,9 +167,7 @@ reads the file a Write, an Edit or a shell write is about to change, to judge on
 - The shell reading has limits. It follows what `echo`, `printf`, heredocs and `sed -i`
   write, to a file named outright or through a name the command set to a plain value, but it does not run the command, so a date a `sed` makes after a step that may be
   skipped can pass, and so can one a command works out as it runs. A hook has 10 s, and by Claude Code's
-  declared rules a command that takes it longer to read runs unchecked. With an earlier reader,
-  80 `printf x` steps on a 3.9 MB file that is one long line took more than 15 s;
-  that timing predates the current reader changes. Not seen in real Claude Code. The CHANGELOG lists the cases found.
+  declared rules a command that takes it longer to read runs unchecked. Not seen in real Claude Code. The CHANGELOG lists the cases found.
 
 ## Install
 
@@ -206,8 +204,7 @@ claude plugin install date-check --marketplace ./package
 ```
 
 Keep the unpacked `package` folder: this installation loads its files in place.
-Downloading from npm needs network access; unpacking and installing this local
-marketplace do not.
+Downloading from npm needs network access.
 
 ## License
 
